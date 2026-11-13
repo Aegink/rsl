@@ -1,0 +1,19 @@
+# 可再生产物 —— 不入库
+target/
+dist/
+converted/
+decompiled/
+
+# 本地 Rust 工具链（一条命令重建）
+.toolchain/
+
+# 一次性实验区
+scratch/
+*.log
+*.tmp
+Thumbs.db
+
+# 调试产物
+fixtures/*.fixture.json
+_tests_out/
+_tmp_*

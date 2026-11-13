@@ -1,0 +1,18 @@
+[package]
+name = "rsl-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RSL command line tool (lint/compile/run/record/test/build/pack/convert/explain)"
+
+[[bin]]
+name = "rsl"
+path = "src/main.rs"
+
+[dependencies]
+rsl-core = { path = "../rsl-core" }
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+hex.workspace = true
+regex.workspace = true

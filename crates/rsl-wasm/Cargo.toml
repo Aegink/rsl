@@ -1,0 +1,20 @@
+[package]
+name = "rsl-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RSL WASM binding (T6.4) — wasm-bindgen thin shell"
+
+[lib]
+name = "rsl_wasm"
+crate-type = ["cdylib", "rlib"]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[dependencies]
+rsl-core = { path = "../rsl-core", default-features = false }
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+getrandom02 = { workspace = true }
+getrandom03 = { workspace = true }

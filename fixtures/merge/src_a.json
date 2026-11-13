@@ -1,0 +1,9 @@
+{
+  "source": "源甲",
+  "items": [
+    { "name": "斗破苍穹", "author": "天蚕土豆", "url": "https://a.example.com/1" },
+    { "name": "凡人修仙传", "author": "忘语", "url": "https://a.example.com/2" },
+    { "name": "诡秘之主", "author": "爱潜水的乌贼", "url": "https://a.example.com/3" },
+    { "name": "雪中悍刀行", "author": "烽火戏诸侯", "url": "https://a.example.com/4" }
+  ]
+}

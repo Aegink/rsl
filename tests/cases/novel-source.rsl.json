@@ -1,0 +1,64 @@
+{
+  "rsl": "2.0",
+  "id": "example.com",
+  "name": "测试源（fixture 驱动）",
+  "type": "novel",
+  "baseUrl": "https://example.com",
+  "requires": { "features": ["js"], "crypto": [], "selectorLevel": { "css": "4" } },
+  "http": { "headers": { "User-Agent": "rsl-test/1.0" }, "retry": { "times": 0, "backoff": "none" } },
+  "lib": { "pure": "function cleanTitle(s){ return String(s||'').replace(/[《》\\[\\]]/g,'').trim(); }", "ctx": "" },
+  "limits": { "maxNodes": { "value": 5000, "on": "truncate" } },
+  "stages": {
+    "search": {
+      "request": { "url": "https://example.com/search", "params": { "q": "var:kw" }, "response": "html" },
+      "out": {
+        "list": "css:ul.result > li",
+        "map": {
+          "name": { "$": "css:a.title", "transform": [{ "trim": true }, { "js": "lib:cleanTitle" }] },
+          "url": { "$": "css:a.title", "attr": "href", "transform": [{ "absolute": true }] },
+          "author": { "$": "css:span.author", "optional": true, "default": "" },
+          "wordCount": { "$": "css:span.words", "transform": [{ "number": { "unit": true } }], "optional": true }
+        },
+        "emptyOk": true
+      },
+      "paginate": { "kind": "page", "pageVar": "page", "max": 2, "stopIf": { "empty": "out.list", "noNew": true } }
+    },
+    "detail": {
+      "request": { "url": "var:book.url", "response": "html" },
+      "out": {
+        "name": { "$": "css:h1.book-name", "transform": [{ "trim": true }, { "js": "lib:cleanTitle" }] },
+        "author": { "$": "css:div.info span.author", "transform": [{ "regex": { "regex": "作\\s*者[:：]\\s*(\\S+)", "replace": "$1" } }] },
+        "kind": { "$": "css:.tags a", "transform": [{ "join": "," }], "optional": true },
+        "tocUrl": { "$": "css:a.btn-read", "attr": "href", "transform": [{ "absolute": true }], "optional": true }
+      }
+    },
+    "toc": {
+      "request": { "url": "var:book.tocUrl", "response": "html" },
+      "order": "auto",
+      "reuseDetailHtml": true,
+      "out": {
+        "list": "css:div#chapter-list > ul > li",
+        "map": {
+          "title": { "$": "css:a", "transform": [{ "trim": true }] },
+          "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] },
+          "isVolume": { "$": "css:.volume", "exists": true },
+          "isVip": { "$": "css:i.vip", "exists": true }
+        }
+      }
+    },
+    "content": {
+      "request": { "url": "var:chapter.url", "response": "html" },
+      "out": {
+        "title": { "$": "css:h1.chapter-title", "transform": [{ "trim": true }], "optional": true },
+        "content": {
+          "$": "css:div#content",
+          "strip": ["css:span.ad", "css:style"],
+          "protect": ["<usehtml>", "</usehtml>"],
+          "paragraphs": { "split": "br", "minLength": 1 },
+          "transform": [{ "replace": [["&nbsp;", " "]] }, { "html": true }]
+        },
+        "nextPage": { "$": "css:a#next-page", "attr": "href", "transform": [{ "absolute": true }], "optional": true }
+      }
+    }
+  }
+}

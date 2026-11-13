@@ -1,0 +1,34 @@
+source: edge.example.com
+cases:
+  - name: where 过滤（has a.t）
+    stage: search
+    level: L2
+    vars: { kw: 书名, page: 1 }
+    fixture: fixtures/edge_search.html
+    assert:
+      - count("list") == 3
+
+  - name: parse 预处理根（HTML 藏 JSON）
+    stage: detail
+    level: L2
+    vars: { "book.url": "https://edge.example.com/b/1" }
+    fixture: fixtures/edge_detail.html
+    assert:
+      - "map.name" == "《书名甲》"
+
+  - name: toc where not hidden
+    stage: toc
+    level: L2
+    vars: { "book.tocUrl": "https://edge.example.com/b/1/toc" }
+    fixture: fixtures/edge_toc.html
+    assert:
+      - count("list") == 3
+      - "list[0].map.title" == "第一章 风起"
+
+  - name: content 段落（auto + minLength 2）
+    stage: content
+    level: L2
+    vars: { "chapter.url": "https://edge.example.com/c/1" }
+    fixture: fixtures/edge_content.html
+    assert:
+      - count("list") == 0

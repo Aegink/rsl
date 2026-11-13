@@ -1,0 +1,14 @@
+[package]
+name = "rsl-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RSL C ABI (T6.1) — rsl.h + staticlib glue"
+
+[lib]
+name = "rsl_ffi"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+rsl-core = { path = "../rsl-core", features = ["net"] }
+serde_json.workspace = true

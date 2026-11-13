@@ -1,0 +1,196 @@
+{
+  "rsl": "2.0",
+  "id": "example.com",
+  "name": "示例小说站（HTML）",
+  "type": "novel",
+  "baseUrl": "https://example.com",
+  "match": { "detail": "re:^https://example\\.com/book/\\d+" },
+  "lang": "zh",
+  "version": "2.0.0",
+  "requires": {
+    "engine": ">=2.0 <3.0",
+    "features": ["js", "font", "detect"],
+    "crypto": [],
+    "selectorLevel": { "css": "4", "xpath": "1.0", "jsonpath": "9535" }
+  },
+  "http": {
+    "headers": {
+      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+      "Accept-Language": "zh-CN,zh;q=0.9"
+    },
+    "timeout": 15000,
+    "retry": { "times": 2, "backoff": "exponential", "on": [429, 500, 502, 503, 504] },
+    "rate": { "windowMs": 60000, "max": 30 },
+    "redirect": { "max": 5 },
+    "cookies": "session"
+  },
+  "vars": {
+    "api": "https://example.com/api",
+    "line": {
+      "value": "https://example.com",
+      "label": "线路",
+      "options": ["https://example.com", "https://m.example.com"],
+      "persist": true
+    }
+  },
+  "media": {
+    "headers": { "Referer": "var:baseUrl" },
+    "cache": { "ttl": 86400 },
+    "maxBytes": 20971520
+  },
+  "merge": {
+    "key": ["name", "author"],
+    "normalize": ["trim", "t2s"],
+    "crossBucket": true,
+    "order": ["exact", "contains", "sources", "weight"],
+    "weight": 1.0,
+    "minScore": 0
+  },
+  "lib": {
+    "pure": "function cleanTitle(s){ return String(s||'').replace(/[《》\\[\\]]/g,'').replace(/\\s+/g,' ').trim(); }\nfunction toInt(s){ var m=String(s||'').match(/(\\d+)/); return m?parseInt(m[1],10):0; }\nfunction glyph(ch){ return ch; }",
+    "ctx": ""
+  },
+  "stages": {
+    "search": {
+      "request": {
+        "url": "var:line/search",
+        "params": { "q": "var:kw", "pn": "expr:page - 1" },
+        "response": "html"
+      },
+      "out": {
+        "list": "css:ul.result > li",
+        "map": {
+          "name": { "$": "css:a.title", "transform": [{ "trim": true }, { "js": "lib:cleanTitle" }] },
+          "url": { "$": "css:a.title", "attr": "href", "transform": [{ "absolute": true }] },
+          "author": { "$": "css:span.author", "optional": true, "default": "" },
+          "cover": { "$": "css:img.cover", "attr": "data-src", "transform": [{ "absolute": true }], "optional": true },
+          "wordCount": { "$": "css:span.words", "transform": [{ "number": { "unit": true } }], "optional": true },
+          "lastChapter": { "$": "css:span.latest", "transform": [{ "trim": true }], "optional": true }
+        },
+        "verify": { "contains": "var:kw" },
+        "emptyOk": true
+      },
+      "paginate": { "kind": "page", "pageVar": "page", "max": 20, "stopIf": { "empty": "out.list" } }
+    },
+
+    "explore": {
+      "filters": [
+        {
+          "key": "order",
+          "label": "排序",
+          "default": "hot",
+          "persist": true,
+          "options": [
+            { "value": "hot", "label": "最热" },
+            { "value": "new", "label": "最新" },
+            { "value": "vote", "label": "月票" }
+          ]
+        }
+      ],
+      "groups": [
+        { "title": "玄幻", "params": { "cat": "xuanhuan" } },
+        { "title": "都市", "params": { "cat": "dushi" } },
+        {
+          "title": "排行榜",
+          "groups": [
+            { "title": "月票榜", "params": { "cat": "rank", "by": "vote" } },
+            { "title": "收藏榜", "params": { "cat": "rank", "by": "fav" } }
+          ]
+        }
+      ],
+      "request": {
+        "url": "var:line/list",
+        "params": { "cat": "var:group.params.cat", "by": "var:filter.order", "p": "var:page" },
+        "response": "html"
+      },
+      "out": {
+        "list": "css:.list .item",
+        "map": {
+          "name": { "$": "css:h3", "transform": [{ "trim": true }] },
+          "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] },
+          "author": { "$": "css:.sub", "transform": [{ "trim": true }], "optional": true }
+        },
+        "emptyOk": true
+      },
+      "paginate": { "kind": "page", "max": 20 }
+    },
+
+    "detail": {
+      "request": { "url": "var:book.url", "response": "html" },
+      "out": {
+        "name": { "$": "css:h1.book-name", "transform": [{ "trim": true }, { "js": "lib:cleanTitle" }] },
+        "author": {
+          "$": "css:div.info span.author",
+          "transform": [{ "regex": { "regex": "作\\s*者[:：]\\s*(\\S+)", "replace": "$1" } }]
+        },
+        "cover": { "$": "css:img.book-cover", "attr": "src", "transform": [{ "absolute": true }], "optional": true },
+        "intro": {
+          "fallback": ["css:div#intro", "css:meta[name=description]"],
+          "attr": "content",
+          "optional": true
+        },
+        "kind": { "$": "css:.tags a", "transform": [{ "join": "," }], "optional": true },
+        "lastChapter": { "$": "css:.last-chapter a", "optional": true },
+        "updateTime": { "$": "css:.update-time", "transform": [{ "trim": true }], "optional": true },
+        "tocUrl": { "$": "css:a.btn-read", "attr": "href", "transform": [{ "absolute": true }], "optional": true },
+        "canRename": { "$": "const:true", "optional": true }
+      }
+    },
+
+    "toc": {
+      "request": { "url": "var:book.tocUrl", "response": "html" },
+      "order": "auto",
+      "dedupe": "url",
+      "reuseDetailHtml": true,
+      "out": {
+        "list": "css:div#chapter-list > ul > li",
+        "map": {
+          "title": { "$": "css:a", "transform": [{ "trim": true }] },
+          "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] },
+          "isVolume": { "$": "css:.volume", "exists": true },
+          "isVip": { "$": "css:i.vip", "exists": true },
+          "updateTime": { "$": "css:span.t", "optional": true }
+        }
+      },
+      "paginate": { "kind": "next", "next": "css:a.next-page", "max": 50, "dedupe": "url" }
+    },
+
+    "content": {
+      "request": { "url": "var:chapter.url", "charset": "gbk", "response": "html" },
+      "out": {
+        "title": { "$": "css:h1.chapter-title", "transform": [{ "trim": true }] },
+        "content": {
+          "$": "css:div#content",
+          "strip": ["css:script", "css:style", "css:.ad", "css:div[align=center]"],
+          "protect": ["<usehtml>", "</usehtml>"],
+          "paragraphs": { "split": "br", "minLength": 1 },
+          "transform": [
+            { "replace": [["&nbsp;", " "]] },
+            { "html": true },
+            { "font": { "map": "lib:glyph", "ref": "var:normalFont" } }
+          ]
+        },
+        "nextPage": { "$": "css:a#next-page", "attr": "href", "transform": [{ "absolute": true }], "optional": true },
+        "tracks": []
+      }
+    }
+  },
+  "limits": {
+    "maxBytes": { "value": 2097152, "on": "reject" },
+    "maxNodes": { "value": 5000, "on": "truncate" },
+    "timeoutMs": 20000,
+    "maxRedirects": 5,
+    "maxPages": { "value": 50, "on": "truncate" },
+    "maxParallel": 4,
+    "libSteps": 1000000,
+    "scriptTimeoutMs": 3000,
+    "mediaBytes": 20971520
+  },
+  "meta": {
+    "author": "rsl-spec",
+    "license": "CC0",
+    "updated": "2026-11-21",
+    "comment": "虚构站点，仅演示语法：CSS 选择器、分页、字体映射、逐章规则合规示范、详情目录同页复用、占位保护、多源合并契约",
+    "changelog": [{ "version": "2.0.0", "date": "2026-11-21", "note": "按 RSL 2.0 重写" }]
+  }
+}

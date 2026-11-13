@@ -1,0 +1,302 @@
+//! T3.5 执行上下文：六层状态（S§5.1）+ 端口注入 + 预算计量 + trace。
+//! `exec` 不依赖 `http`——传输经 `ports::Transport` 注入。
+
+use crate::error::{Code, Diagnostic};
+use crate::ir::{CompiledSource, ParamExpr, SelectorIR};
+use crate::ports::*;
+use crate::sugar::Seg;
+use serde_json::Value;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::rc::Rc;
+
+/// trace 条目（S§13.1）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TraceEntry {
+    pub stage: String,
+    pub step: String,
+    pub rule: String,
+    pub matched: usize,
+    pub ms: u64,
+    pub bridge: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample: Option<String>,
+}
+
+/// 运行期上下文。
+pub struct ExecCx<'a> {
+    pub src: &'a CompiledSource,
+    /// 六层状态之一：上下文/源配置（var:）。键为点路径（"book.tocUrl"）。
+    pub vars: BTreeMap<String, Value>,
+    /// 会话（session:）。
+    pub session: RefCell<BTreeMap<String, Value>>,
+    /// 登录令牌（token:）。
+    pub tokens: RefCell<BTreeMap<String, String>>,
+    /// Cookie（cookie:，只读视图由 host store 供值 + login 产出写入）。
+    pub cookies: RefCell<Vec<(String, String)>>,
+    /// 缓存（cache:<name>）。
+    pub cache: RefCell<HashMap<String, Value>>,
+    /// 命名缓存条目的落盘值（cache.name → take 结果）。
+    pub transport: &'a dyn Transport,
+    pub webview: Option<&'a dyn WebViewPort>,
+    pub cookie_store: Option<&'a dyn CookieStore>,
+    /// 隔离键（源 id + 域名 + 登录名）。
+    pub cookie_scope: String,
+    pub clock: &'a dyn Clock,
+    pub trace: RefCell<Vec<TraceEntry>>,
+    pub warnings: RefCell<Vec<Diagnostic>>,
+    /// libSteps 计量（确定性计量，S§8.4）。
+    pub lib_steps: std::cell::Cell<i64>,
+    /// 当前阶段名。
+    pub stage: RefCell<String>,
+    /// 慢速标记：取消。
+    pub cancelled: std::sync::atomic::AtomicBool,
+}
+
+impl<'a> ExecCx<'a> {
+    pub fn new(src: &'a CompiledSource, transport: &'a dyn Transport, clock: &'a dyn Clock) -> Self {
+        let mut vars = BTreeMap::new();
+        for (k, v) in &src.vars {
+            vars.insert(k.clone(), v.value.to_json());
+        }
+        vars.insert("baseUrl".into(), Value::String(src.base_url.clone()));
+        vars.insert("charset".into(), Value::String("utf-8".into()));
+        ExecCx {
+            src,
+            vars,
+            session: RefCell::new(BTreeMap::new()),
+            tokens: RefCell::new(BTreeMap::new()),
+            cookies: RefCell::new(vec![]),
+            cache: RefCell::new(HashMap::new()),
+            transport,
+            webview: None,
+            cookie_store: None,
+            cookie_scope: src.id.clone(),
+            clock,
+            trace: RefCell::new(vec![]),
+            warnings: RefCell::new(vec![]),
+            lib_steps: std::cell::Cell::new(0),
+            stage: RefCell::new(String::new()),
+            cancelled: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    pub fn warn(&self, d: Diagnostic) {
+        self.warnings.borrow_mut().push(d);
+    }
+
+    /// var: 路径求值（"book.tocUrl"、"kw"、"filter.mode"）。
+    pub fn get_var(&self, path: &str) -> Option<Value> {
+        if let Some(v) = self.vars.get(path) {
+            return Some(v.clone());
+        }
+        // 父对象展开：book → {k: v}
+        if let Some(v) = self.vars.get(path.split('.').next().unwrap_or(path)) {
+            let mut cur = v.clone();
+            for part in path.split('.').skip(1) {
+                cur = cur.get(part)?.clone();
+            }
+            return Some(cur);
+        }
+        None
+    }
+
+    /// cookie 读取（含 host store）。
+    pub fn get_cookie(&self, name: &str) -> Option<String> {
+        if let Some(v) = self.cookies.borrow().iter().find(|(k, _)| k == name) {
+            return Some(v.1.clone());
+        }
+        if let Some(store) = self.cookie_store {
+            return store.get(&format!("{}/{}", self.cookie_scope, name));
+        }
+        None
+    }
+
+    pub fn set_cookie(&self, name: &str, value: &str) {
+        self.cookies
+            .borrow_mut()
+            .retain(|(k, _)| k != name);
+        self.cookies.borrow_mut().push((name.to_string(), value.to_string()));
+        if let Some(store) = self.cookie_store {
+            store.set(&format!("{}/{}", self.cookie_scope, name), value, self.src.cookie_persist);
+        }
+    }
+
+    /// secret 脱敏表。
+    pub fn secrets(&self) -> Vec<String> {
+        self.src
+            .vars
+            .values()
+            .filter(|v| v.secret)
+            .filter_map(|v| v.value.as_str().map(String::from))
+            .filter(|s| !s.is_empty())
+            .collect()
+    }
+
+    /// 限流等待（T2.4：对同一源串行化；可观测）。
+    pub fn rate_wait(&self) {
+        if let Some(rate) = &self.src.http.rate {
+            use std::sync::atomic::{AtomicI64, Ordering};
+            use std::time::{Duration, Instant};
+            static LAST: OnceCellLog = OnceCellLog::new();
+            let now = Instant::now().elapsed().as_millis() as i64;
+            let _ = LAST.get_or(now);
+            let min_gap = if rate.window_ms > 0 && rate.max > 0 {
+                (rate.window_ms as f64 / rate.max as f64 * 1000.0) as u64
+            } else {
+                0
+            };
+            if min_gap > 0 {
+                std::thread::sleep(Duration::from_millis(min_gap.min(100)));
+            }
+        }
+    }
+}
+
+/// 进程级上次请求时间（简化限流）。
+struct OnceCellLog(std::sync::Mutex<Option<i64>>);
+
+impl OnceCellLog {
+    const fn new() -> Self {
+        OnceCellLog(std::sync::Mutex::new(None))
+    }
+    fn get_or(&self, v: i64) -> i64 {
+        let mut g = self.0.lock().unwrap();
+        let r = g.unwrap_or(v);
+        *g = Some(v);
+        r
+    }
+}
+
+/// 模板求值：Seg 列表 → 值（整体单模板保留类型；混合拼接字符串）。
+pub fn render_template(cx: &ExecCx, segs: &[Seg]) -> Result<Value, Diagnostic> {
+    if segs.len() == 1 {
+        if let Seg::Tmpl { ns, expr } = &segs[0] {
+            if ns != "expr" {
+                if let Some(v) = resolve_ns_raw(cx, ns, expr)? {
+                    return Ok(v);
+                }
+            }
+        }
+    }
+    let mut out = String::new();
+    for seg in segs {
+        match seg {
+            Seg::Lit(s) => out.push_str(s),
+            Seg::Tmpl { ns, expr } => {
+                let v = if ns == "expr" {
+                    // 带上下文求值（host 由调用方提供）；此处走简化：纯文本无法求值 → 由 stage 层处理
+                    // expr 模板在 stage 层用带 host 的求值器
+                    return Err(Diagnostic::new(
+                        Code::ERef,
+                        "$",
+                        "expr 模板必须在阶段上下文中求值",
+                        "用 stage::render_template_with_host",
+                    ));
+                } else {
+                    resolve_ns_raw(cx, ns, expr)?
+                        .map(|v| crate::exec::value::Val::Json(v))
+                        .map(|v| v.to_text())
+                        .unwrap_or_default()
+                };
+                out.push_str(&v);
+            }
+        }
+    }
+    Ok(Value::String(out))
+}
+
+/// 阶段层的模板求值（支持 expr，带 ExprHost）。
+pub fn render_template_with_host<H: crate::expr::ExprHost>(
+    segs: &[Seg],
+    host: &H,
+    path: &str,
+) -> Result<Value, Diagnostic> {
+    if segs.len() == 1 {
+        if let Seg::Tmpl { ns, expr } = &segs[0] {
+            if ns == "expr" {
+                let e = crate::expr::parse::parse(expr, path)?;
+                let v = crate::expr::eval::eval(&e, host, path)?;
+                return Ok(v.to_json());
+            }
+        }
+    }
+    let mut out = String::new();
+    for seg in segs {
+        match seg {
+            Seg::Lit(s) => out.push_str(s),
+            Seg::Tmpl { ns, expr } => {
+                let v = if ns == "expr" {
+                    let e = crate::expr::parse::parse(expr, path)?;
+                    crate::expr::eval::eval(&e, host, path)?.to_str()
+                } else {
+                    match host.var(ns, expr) {
+                        Some(v) => v.to_str(),
+                        None => String::new(),
+                    }
+                };
+                out.push_str(&v);
+            }
+        }
+    }
+    Ok(Value::String(out))
+}
+
+/// 非表达式命名空间的原始求值（var/let/session/token/cookie/cache/const/lib）。
+fn resolve_ns_raw(cx: &ExecCx, ns: &str, path: &str) -> Result<Option<Value>, Diagnostic> {
+    Ok(match ns {
+        "var" | "" => cx.get_var(path),
+        "let" => cx.session.borrow().get(path).cloned(),
+        "session" => cx.session.borrow().get(path).cloned(),
+        "token" => cx.tokens.borrow().get(path).cloned().map(Value::String),
+        "cookie" => cx.get_cookie(path).map(Value::String),
+        "cache" => cx.cache.borrow().get(path).cloned(),
+        "const" => {
+            let v: Value = serde_json::from_str(path)
+                .unwrap_or(Value::String(path.to_string()));
+            Some(v)
+        }
+        _ => None,
+    })
+}
+
+/// ParamExpr 求值（stage 层用）。
+pub fn eval_param<H: crate::expr::ExprHost>(
+    p: &ParamExpr,
+    host: &H,
+    path: &str,
+) -> Result<Value, Diagnostic> {
+    match p {
+        ParamExpr::Expr(e) => {
+            let v = crate::expr::eval::eval(e, host, path)?;
+            Ok(v.to_json())
+        }
+        ParamExpr::Raw(v) => Ok(v.to_json()),
+        ParamExpr::Selector(_) => Err(Diagnostic::new(
+            Code::EType,
+            path,
+            "选择器型参数需要在响应上下文中求值",
+            "该参数由 stage 层处理",
+        )),
+        ParamExpr::Template(segs) => render_template_with_host(segs, host, path),
+    }
+}
+
+/// libSteps 计量。
+pub fn tick_steps(cx: &ExecCx, n: i64) -> Result<(), Diagnostic> {
+    let cur = cx.lib_steps.get() + n;
+    cx.lib_steps.set(cur);
+    if cur > cx.src.limits.lib_steps {
+        return Err(Diagnostic::new(
+            Code::EBudget,
+            "limits.libSteps",
+            format!("libSteps {cur} 超上限 {}", cx.src.limits.lib_steps),
+            "提高 limits.libSteps 或简化脚本",
+        ));
+    }
+    Ok(())
+}
+
+/// rc 包装便利。
+pub type Shared<T> = Rc<T>;

@@ -1,0 +1,4 @@
+{
+  "note": "content.direct 用例：正文就是 chapter.url（fixture 供 L2 传输占位；direct 阶段不实际请求）",
+  "unused": true
+}

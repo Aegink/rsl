@@ -1,0 +1,19 @@
+source: agg.example.com
+cases:
+  - name: enumerate 一次性拼接
+    stage: search
+    level: L2
+    vars: { kw: 页, page: 1 }
+    fixture: fixtures/enumerate.json
+    assert:
+      - 'count("list") == 2'
+      - 'list[0].map.name == 页 1 内容'
+
+  - name: 多源合并去重（crossBucket 全局比较）
+    merge: fixtures/merge
+    level: L2
+    assert:
+      - 'count(merged) == 7'
+      - 'merged[0].name == 斗破苍穹'
+      - 'merged[0].sources == 3'
+      - 'merged[1].sources == 2'

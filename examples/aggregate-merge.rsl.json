@@ -1,0 +1,141 @@
+{
+  "rsl": "2.0",
+  "id": "agg.example.com",
+  "name": "示例聚合站（页码枚举 + 多源合并契约）",
+  "type": "novel",
+  "baseUrl": "https://agg.example.com",
+  "match": { "detail": "re:^https://agg\\.example\\.com/b/\\d+" },
+  "lang": "zh",
+  "version": "2.0.0",
+  "requires": {
+    "engine": ">=2.0 <3.0",
+    "features": ["js"],
+    "crypto": [],
+    "selectorLevel": { "css": "4", "xpath": "1.0" }
+  },
+  "http": {
+    "headers": { "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36" },
+    "timeout": 15000,
+    "retry": { "times": 2, "backoff": "exponential", "on": [429, 500, 502, 503, 504] },
+    "rate": { "windowMs": 60000, "max": 20 },
+    "cookies": "session"
+  },
+  "vars": {
+    "mirror": {
+      "value": "https://agg.example.com",
+      "label": "镜像线路",
+      "options": ["https://agg.example.com", "https://agg2.example.com"],
+      "persist": true
+    }
+  },
+  "merge": {
+    "key": ["name", "author"],
+    "normalize": ["trim", "t2s", "stripPunct"],
+    "crossBucket": true,
+    "order": ["exact", "contains", "sources", "weight"],
+    "weight": 1.2,
+    "minScore": 0
+  },
+  "lib": {
+    "pure": "function cleanTitle(s){ return String(s||'').replace(/[《》\\[\\]]/g,'').trim(); }",
+    "ctx": ""
+  },
+  "stages": {
+    "search": {
+      "request": {
+        "url": "var:mirror/api/search",
+        "params": { "q": "var:kw", "pages": "var:pages" },
+        "response": "json"
+      },
+      "out": {
+        "list": "json:$.data.items[*]",
+        "map": {
+          "name": { "$": "json:$.title", "transform": [{ "trim": true }, { "js": "lib:cleanTitle" }] },
+          "url": { "$": "expr:'https://agg.example.com/b/' + var:item.bid" },
+          "author": { "$": "json:$.author", "optional": true },
+          "cover": { "$": "json:$.cover", "optional": true },
+          "lastChapter": { "$": "json:$.last", "optional": true },
+          "updateTime": {
+            "$": "json:$.updated_at",
+            "transform": [{ "date": { "from": "yyyy-MM-dd'T'HH:mm:ss", "to": "yyyy-MM-dd", "tz": 8 } }],
+            "optional": true
+          }
+        },
+        "emptyOk": true,
+        "verify": { "contains": "var:kw" }
+      },
+      "paginate": {
+        "kind": "enumerate",
+        "enumerate": { "from": 1, "to": 3 },
+        "joinWith": ",",
+        "into": "params.pages",
+        "max": 1,
+        "stopIf": { "empty": "out.list" }
+      }
+    },
+
+    "detail": {
+      "request": { "url": "var:book.url", "response": "html" },
+      "out": {
+        "name": { "$": "css:h1.title", "transform": [{ "trim": true }] },
+        "author": { "$": "css:.author", "transform": [{ "trim": true }], "optional": true },
+        "cover": { "$": "css:img.cover", "attr": "src", "transform": [{ "absolute": true }], "optional": true },
+        "intro": { "$": "css:.intro", "transform": [{ "trim": true }], "optional": true },
+        "kind": { "$": "css:.tags a", "transform": [{ "join": "/" }], "optional": true },
+        "tocUrl": { "$": "const:https://agg.example.com/b/self", "optional": true }
+      }
+    },
+
+    "toc": {
+      "reuseDetailHtml": true,
+      "order": "auto",
+      "dedupe": "url",
+      "out": {
+        "list": "css:ul.chapters > li",
+        "map": {
+          "title": { "$": "css:a", "transform": [{ "trim": true }] },
+          "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] },
+          "isVolume": { "$": "css:.vol", "exists": true },
+          "isVip": { "$": "css:i.vip", "exists": true },
+          "wordCount": { "$": "css:.wc", "transform": [{ "number": true }], "optional": true }
+        }
+      }
+    },
+
+    "content": {
+      "request": { "url": "var:chapter.url", "charset": "utf-8", "response": "html" },
+      "out": {
+        "title": { "$": "css:h1.ct", "transform": [{ "trim": true }] },
+        "content": {
+          "$": "css:div#read",
+          "strip": ["css:script", "css:style", "css:.ad", "css:.recommend"],
+          "protect": ["<usehtml>", "</usehtml>"],
+          "paragraphs": { "split": "auto", "minLength": 2 },
+          "transform": [
+            { "replace": [["&nbsp;", " "], ["\u3000", " "]] },
+            { "html": true },
+            { "dropEmpty": true }
+          ]
+        },
+        "nextPage": { "$": "css:a.next", "attr": "href", "transform": [{ "absolute": true }], "optional": true },
+        "tracks": []
+      }
+    }
+  },
+  "limits": {
+    "maxBytes": { "value": 2097152, "on": "reject" },
+    "maxNodes": { "value": 5000, "on": "truncate" },
+    "timeoutMs": 20000,
+    "maxPages": { "value": 3, "on": "truncate" },
+    "maxParallel": 4,
+    "libSteps": 500000,
+    "scriptTimeoutMs": 3000
+  },
+  "meta": {
+    "author": "rsl-spec",
+    "license": "CC0",
+    "updated": "2026-11-21",
+    "comment": "虚构站点，演示：merge 多源合并契约、paginate.enumerate 一次性页码拼接、toc.reuseDetailHtml 详情目录同页、protect 占位保护",
+    "changelog": [{ "version": "2.0.0", "date": "2026-11-21", "note": "随 RSL 2.0 新增" }]
+  }
+}

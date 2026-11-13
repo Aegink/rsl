@@ -1,0 +1,63 @@
+source: example.com
+cases:
+  - name: search 正常（3 条）
+    stage: search
+    level: L2
+    vars: { kw: 斗破, page: 1 }
+    fixture: fixtures/search.html
+    assert:
+      - 'count("list") == 3'
+      - 'list[0].map.name == 斗破苍穹'
+      - 'list[0].map.url =~ ^https://example\.com/book/\d+$'
+
+  - name: 站点改版后应报错（E_NO_MATCH at out.list）
+    stage: toc
+    level: L2
+    vars: { "book.tocUrl": "https://example.com/book/1/toc" }
+    fixture: fixtures/toc_v2.html
+    expect_error: E_NO_MATCH
+    at: out.list
+
+  - name: 目录 1200 章全量取回
+    stage: toc
+    level: L2
+    vars: { "book.tocUrl": "https://example.com/book/1/toc" }
+    fixture: fixtures/toc_1200.html
+    assert:
+      - 'count("list") == 1200'
+      - 'list[0].map.title == 第1章 第一卷'
+
+  - name: 详情目录同页复用（reuseDetailHtml）
+    stage: toc
+    level: L2
+    vars: { "book.tocUrl": "https://example.com/book/9/toc" }
+    fixture: fixtures/toc_same_as_detail.html
+    assert:
+      - 'count("list") == 3'
+      - 'list[0].map.title == 第一章 风起'
+
+  - name: 无分页站点（stopIf.noNew 第 2 页停止）
+    stage: search
+    level: L2
+    vars: { kw: 固定, page: 1 }
+    fixture: fixtures/paginate_no_paging.html
+    assert:
+      - 'count("list") == 3'
+      - 'list[0].map.name == 固定列表·无分页站点'
+
+  - name: protect 占位保护（usehtml 内容无损）
+    stage: content
+    level: L2
+    vars: { "chapter.url": "https://example.com/c/1" }
+    fixture: fixtures/protect_usehtml.html
+    assert:
+      - 'content contains keep-me-1'
+      - 'content contains keep-me-2'
+
+  - name: 预算截断（maxNodes → W_BUDGET_TRUNCATED + 部分结果）
+    stage: search
+    level: L2
+    vars: { kw: 条目, page: 1 }
+    fixture: fixtures/budget_truncate.html
+    assert:
+      - 'count("list") >= 1'

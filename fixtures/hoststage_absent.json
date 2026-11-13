@@ -1,0 +1,4 @@
+{
+  "note": "hostStages 宿主不支持用例：宿主 caps.hostStages 为空 → E_HOST_STAGE（只禁用该入口）",
+  "data": []
+}

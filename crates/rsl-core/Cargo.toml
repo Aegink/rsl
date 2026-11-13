@@ -1,0 +1,39 @@
+[package]
+name = "rsl-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "RSL Reader Source Language kernel: compiler, executor, transport, testkit"
+
+[lib]
+name = "rsl_core"
+path = "src/lib.rs"
+
+[features]
+default = ["engine-js", "net"]
+engine-js = ["dep:boa_engine"]
+net = ["dep:ureq"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["preserve_order"] }
+regex = { workspace = true }
+url = { workspace = true }
+encoding_rs = { workspace = true }
+bincode = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
+md-5 = { workspace = true }
+sha1 = { workspace = true }
+sha2 = { workspace = true }
+hmac = { workspace = true }
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+cbc = { workspace = true }
+des = { workspace = true }
+cipher = { workspace = true }
+scraper = { workspace = true }
+serde_yaml = { workspace = true }
+ego-tree = { workspace = true }
+ureq = { workspace = true, optional = true }
+boa_engine = { workspace = true, optional = true }

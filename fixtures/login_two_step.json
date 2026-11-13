@@ -1,0 +1,5 @@
+{
+  "login": { "code": 0, "need_sms": true },
+  "verify": { "code": 0, "data": { "token": "tok_fixture_1" } },
+  "me": { "uid": 42, "name": "fixture-user" }
+}
