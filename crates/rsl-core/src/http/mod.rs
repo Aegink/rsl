@@ -170,17 +170,14 @@ impl RateLimiter {
             // 等到最早的请求滑出窗口
             let oldest = entry.first().copied().unwrap_or(now);
             let wait_ms = (window_ms - (now - oldest)).max(1) as u64;
-            std::thread::sleep(Duration::from_millis(wait_ms.min(1000)));
+            crate::ports::sleep_ms(wait_ms.min(1000));
         }
         self.state.entry(key.to_string()).or_default().push(now_ms());
     }
 }
 
 pub fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
+    crate::ports::now_ms()
 }
 
 impl<'a> HttpClient<'a> {
@@ -206,7 +203,7 @@ impl<'a> HttpClient<'a> {
                 _ => 0,
             };
             if backoff_ms > 0 {
-                std::thread::sleep(Duration::from_millis(backoff_ms));
+                crate::ports::sleep_ms(backoff_ms);
             }
             attempt += 1;
         }

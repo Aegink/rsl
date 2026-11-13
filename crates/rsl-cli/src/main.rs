@@ -450,18 +450,9 @@ fn cmd_build(rest: &[String]) -> i32 {
             i += 1;
         }
     }
-    // 收集 srcdir 下的 .rsl.json（确定性排序）
-    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map(|rd| {
-            rd.flatten()
-                .map(|f| f.path())
-                .filter(|p| {
-                    p.extension().and_then(|e| e.to_str()) == Some("json")
-                        && p.to_string_lossy().contains(".rsl")
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    // 收集 srcdir 下全部 .rsl.json（递归子目录树，确定性排序，S§14）
+    let mut files: Vec<PathBuf> = vec![];
+    collect_sources(dir, &mut files);
     files.sort();
     if files.is_empty() {
         eprintln!("{} 下无 .rsl.json 源", dir.display());
@@ -474,35 +465,53 @@ fn cmd_build(rest: &[String]) -> i32 {
     for f in &files {
         let text = load(f.to_str().unwrap_or("")).unwrap_or_default();
         let out = analyze::compile_str(&text);
-        let stem = f.file_stem().and_then(|s| s.to_str()).unwrap_or("src");
+        // 产物保留子目录结构（dist/<相对路径>）
+        let rel = f.strip_prefix(dir).unwrap_or(f).to_path_buf();
         if out.source.is_none() {
-            println!("✗ {stem} 编译失败（语法门禁拦截，产物不落盘）");
+            println!("✗ {} 编译失败（语法门禁拦截，产物不落盘）", rel.display());
             all_ok = false;
             continue;
         }
-        let dest = out_dir.join(f.file_name().unwrap_or_default());
+        let dest = out_dir.join(&rel);
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
         std::fs::write(&dest, &text).ok();
-        manifest.push_str(&format!("{} sha256:{:x}\n", f.file_name().unwrap_or_default().to_string_lossy(), simple_hash(text.as_bytes())));
-        println!("✓ {} → {}", stem, dest.display());
+        manifest.push_str(&format!(
+            "{} sha256:{}\n",
+            rel.to_string_lossy(),
+            sha256_hex(text.as_bytes())
+        ));
+        println!("✓ {} → {}", rel.display(), dest.display());
     }
     let manifest_path = out_dir.join("MANIFEST.txt");
     std::fs::write(&manifest_path, &manifest).ok();
     if all_ok {
-        println!("✓ 装配完成：{}（产物逐字节可复现）", out_dir.display());
+        println!("✓ 装配完成：{}（{} 个源，产物逐字节可复现）", out_dir.display(), files.len());
         0
     } else {
         1
     }
 }
 
-fn simple_hash(data: &[u8]) -> u64 {
-    // FNV-1a（manifest 用；正式校验和用 sha256 见 pack）
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in data {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x100000001b3);
+/// 递归收集 .rsl.json（子目录树；跳过 dist/ target/ 与隐藏目录）。
+fn collect_sources(cur: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(rd) = std::fs::read_dir(cur) else { return };
+    let mut entries: Vec<PathBuf> = rd.flatten().map(|f| f.path()).collect();
+    entries.sort();
+    for p in entries {
+        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+        if name.starts_with('.') || name == "dist" || name == "target" {
+            continue;
+        }
+        if p.is_dir() {
+            collect_sources(&p, out);
+        } else if p.extension().and_then(|e| e.to_str()) == Some("json")
+            && name.contains(".rsl")
+        {
+            out.push(p);
+        }
     }
-    h
 }
 
 // ───────────────────────── pack ─────────────────────────

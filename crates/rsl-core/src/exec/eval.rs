@@ -9,7 +9,6 @@ use crate::ir::*;
 use crate::selector::{jsonpath, xpath};
 use ego_tree::NodeId;
 use serde_json::Value;
-use std::time::Instant;
 
 /// 求值环境：文档引用（CSS/XPath 需要）。
 pub struct Eval<'a, 'c> {
@@ -34,7 +33,7 @@ impl<'a, 'c> Eval<'a, 'c> {
 
     /// 求值一个选择器。fail_empty=true 表示"未命中"返回 Val::Empty 而不是错误。
     pub fn eval_selector(&mut self, sel: &SelectorIR) -> Result<Val, Diagnostic> {
-        let t0 = Instant::now();
+        let t0 = crate::ports::now_ms() as u64;
         // fallback：第一个非空生效（S§3.7）
         let mut val = if sel.fallback.is_empty() {
             self.eval_one(sel)?
@@ -96,7 +95,7 @@ impl<'a, 'c> Eval<'a, 'c> {
             }
         }
 
-        let ms = t0.elapsed().as_millis() as u64;
+        let ms = (crate::ports::now_ms() as u64).saturating_sub(t0);
         let matched = match &val {
             Val::NodeList(l) => l.len(),
             Val::StrList(l) => l.len(),
@@ -1715,30 +1714,11 @@ fn small_cjk(mut n: i64, d: [&str; 10]) -> String {
 
 /// 简繁转换词表（核心常用字；覆盖常见站名场景）。t2s: 繁→简。
 pub fn t2s(s: &str) -> String {
-    let (m, _) = char_maps();
-    s.chars().map(|c| m.get(&c).copied().unwrap_or(c)).collect()
+    super::cjk::opencc_t2s(s)
 }
 
 pub fn s2t(s: &str) -> String {
-    let (_, m) = char_maps();
-    s.chars().map(|c| m.get(&c).copied().unwrap_or(c)).collect()
-}
-
-use std::sync::OnceLock;
-static T2S: OnceLock<std::collections::HashMap<char, char>> = OnceLock::new();
-static S2T: OnceLock<std::collections::HashMap<char, char>> = OnceLock::new();
-
-pub fn char_maps() -> (&'static std::collections::HashMap<char, char>, &'static std::collections::HashMap<char, char>) {
-    let t2s = T2S.get_or_init(|| {
-        std::collections::HashMap::from_iter(
-            "來們個們這裡對時點說話國學會東車馬鳥門開關長問間書樹網絡運動連區員處專業報導應該環境產經濟發現讓與兩雖後視覺聽讀寫譯還風雲電視腦辦實現場館醫院銀館臺灣歷史豐收農業視頻圖書館務員戶戶保護環境".chars()
-            .zip("来们个们这里对时点说话国学会东车马鸟门开关长问间书树网络运动连区员处专业报导应该环境产经济发现让与虽后视觉听读写译还风云电视脑办实现场馆医院银馆台湾历史丰收农业视频图书馆务员户户保护环境".chars())
-        )
-    });
-    let s2t = S2T.get_or_init(|| {
-        t2s.iter().map(|(a, b)| (*b, *a)).collect()
-    });
-    (t2s, s2t)
+    super::cjk::opencc_s2t(s)
 }
 
 /// 日期格式化：from 任意（尽力提取），to = yyyy-MM-dd 等模式。

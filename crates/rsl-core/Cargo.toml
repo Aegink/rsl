@@ -37,3 +37,6 @@ serde_yaml = { workspace = true }
 ego-tree = { workspace = true }
 ureq = { workspace = true, optional = true }
 boa_engine = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"

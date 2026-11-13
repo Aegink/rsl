@@ -60,7 +60,13 @@ impl EVal {
 
     pub fn to_json(&self) -> serde_json::Value {
         match self {
-            EVal::Num(n) => serde_json::json!(n),
+            EVal::Num(n) => {
+                if n.fract() == 0.0 && n.abs() < 9.0e15 {
+                    serde_json::json!(*n as i64)
+                } else {
+                    serde_json::json!(n)
+                }
+            }
             EVal::Str(s) => serde_json::Value::String(s.clone()),
             EVal::Bool(b) => serde_json::Value::Bool(*b),
             EVal::Null => serde_json::Value::Null,

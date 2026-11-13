@@ -104,7 +104,14 @@ impl Val {
         match self {
             Val::Str(s) => Value::String(s.clone()),
             Val::StrList(l) => Value::Array(l.iter().map(|s| Value::String(s.clone())).collect()),
-            Val::Num(n) => serde_json::json!(n),
+            Val::Num(n) => {
+                // 跨端字节一致：整数值 f64 输出为整数（serde "5302500.0" vs JS "5302500"）
+                if n.fract() == 0.0 && n.abs() < 9.0e15 {
+                    serde_json::json!(*n as i64)
+                } else {
+                    serde_json::json!(n)
+                }
+            }
             Val::Bool(b) => Value::Bool(*b),
             Val::Json(v) => v.clone(),
             Val::BlockList(l) => serde_json::to_value(l).unwrap_or(Value::Null),

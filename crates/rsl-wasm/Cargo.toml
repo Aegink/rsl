@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 wasm-bindgen-test = "0.3"
 
 [dependencies]
-rsl-core = { path = "../rsl-core", default-features = false }
+rsl-core = { path = "../rsl-core", default-features = false, features = ["engine-js"] }
 serde_json.workspace = true
 wasm-bindgen.workspace = true
 getrandom02 = { workspace = true }

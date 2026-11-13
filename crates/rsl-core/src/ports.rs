@@ -67,6 +67,33 @@ pub trait CookieStore: Send + Sync {
     fn remove(&self, key: &str);
 }
 
+/// 统一毫秒时钟入口：wasm32 走 js_sys Date（std::time 在该目标 panic）。
+pub fn now_ms() -> i64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now() as i64
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0)
+    }
+}
+
+/// sleep：native 用 thread::sleep；wasm32 无法阻塞（事件循环），跳过。
+pub fn sleep_ms(_ms: u64) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        std::thread::sleep(std::time::Duration::from_millis(_ms));
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = _ms;
+    }
+}
+
 /// 时钟与随机（确定性测试注入固定值；S§7.3）。
 pub trait Clock: Send + Sync {
     fn now_ms(&self) -> i64;
@@ -77,10 +104,7 @@ pub struct SystemClock;
 
 impl Clock for SystemClock {
     fn now_ms(&self) -> i64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis() as i64)
-            .unwrap_or(0)
+        now_ms()
     }
     fn rand(&self) -> f64 {
         // 不依赖外部 crate：用纳秒熵；rand() 只在声明 random feature 后可用

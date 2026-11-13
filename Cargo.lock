@@ -1547,6 +1547,7 @@ dependencies = [
  "encoding_rs",
  "hex",
  "hmac",
+ "js-sys",
  "md-5",
  "regex",
  "scraper",
