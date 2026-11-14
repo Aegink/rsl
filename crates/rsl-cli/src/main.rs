@@ -618,12 +618,29 @@ fn cmd_convert(rest: &[String]) -> i32 {
             return 2;
         }
     };
-    // 单源或源列表
-    let sources: Vec<serde_json::Value> = if v.is_array() {
+    // 单源 / 源列表 / {源名: 源对象} 映射（Legado 常见导出变体）
+    let mut sources: Vec<serde_json::Value> = if v.is_array() {
         v.as_array().unwrap().clone()
     } else {
         vec![v]
     };
+    // 展开 {源名: 源} 映射：任一元素的值是含 bookSourceUrl 的对象
+    let mut unwrapped: Vec<serde_json::Value> = vec![];
+    for el in &sources {
+        if let Some(m) = el.as_object() {
+            let is_map_export = !m.contains_key("bookSourceUrl")
+                && m.len() >= 1
+                && m.values().all(|val| val.is_object());
+            if is_map_export {
+                for (_, val) in m {
+                    unwrapped.push(val.clone());
+                }
+                continue;
+            }
+        }
+        unwrapped.push(el.clone());
+    }
+    sources = unwrapped;
     std::fs::create_dir_all(&out_dir).ok();
     let mut exit = 0;
     for (n, leg) in sources.iter().enumerate() {
@@ -827,7 +844,7 @@ fn rsl_core_convert_one(leg: &serde_json::Value) -> Result<(String, serde_json::
         }
         stages["explore"] = e;
     }
-    stages["detail"] = build_detail_out(&leg["ruleBookInfo"], &mut changed);
+    stages["detail"] = serde_json::json!({ "out": build_detail_out(&leg["ruleBookInfo"], &mut changed) });
     let mut toc_stage = serde_json::json!({
         "request": { "url": "var:book.tocUrl" },
         "out": build_toc_out(rule_toc, &mut changed),
@@ -964,46 +981,151 @@ fn parse_concurrent_rate(s: &str) -> serde_json::Value {
 }
 
 /// Legado 规则字符串 → RSL 选择器（MIGRATION §3 语法翻译）。
-/// Err(reason) = 不可转（@js:/<js>/data: 伪协议/函数包裹），须进 migration 报告。
-fn legado_rule_to_rsl(rule: &str) -> Result<String, String> {
+/// 支持：@css:/@Json: 显式前缀、@ 链（class.X@tag.a@href）、tag./class./id. 前缀、
+/// 数字下标（a.-1@text）、$./data.books 裸 JSON 路径、XPath。Err = 不可转。
+fn legado_rule_to_rsl(rule: &str) -> Result<Value, String> {
     let r = rule.trim();
-    // ① JS 规则：一律不可转（§5 #1/#8；source.getVariable/java.put 等）
-    if r.starts_with("@js:") || r.contains("<js>") || r.contains("{{$.") || r.contains("{{$.") {
+    // ① JS 规则：不可转
+    if r.starts_with("@js:") || r.contains("<js>") || r.contains("{{$.") {
         return Err("规则含 @js:/<js>/模板插值，绑定 java.*/source.getVariable，需人工重写（§5 #8）".into());
     }
     // ② data: 伪协议（§16 明确不采纳 / §5 #7）
     if r.starts_with("data:") || r.contains("'data:;base64,'") {
-        return Err("data: 伪协议不可转（§16）：改用 out 契约字段承载参数（toc.out.map 额外键 → var:chapter.*）".into());
+        return Err("data: 伪协议不可转（§16）：改用 out 契约字段承载参数".into());
     }
-    // ③ 显式前缀
+    // ③ @get:{x} 等 Legado 变量语法：不可转
+    if r.starts_with("@get:") || r.starts_with("@put:") {
+        return Err("@get:/@put: 规则内变量不可转（§16）：用 let + session 表达".into());
+    }
+    // ④ 剥离 ## 正则段（余下进链翻译；正则段本身报告）
+    let main_full = r;
+    let main = main_full.split("##").next().unwrap_or(r).trim().to_string();
+    let has_regex_tail = main_full.split("##").count() > 2;
+
+    // ⑤ 显式前缀 @css: 等：剥前缀后仍走 @ 链
+    let mut work = main.as_str();
+    let mut forced_ns = "";
     for (pre, ns) in [("@CSS:", "css:"), ("@css:", "css:"), ("@XPath:", "xpath:"), ("@Json:", "json:")] {
-        if let Some(rest) = r.strip_prefix(pre) {
-            return Ok(format!("{ns}{rest}"));
+        if let Some(rest) = work.strip_prefix(pre) {
+            work = rest;
+            forced_ns = ns;
+            break;
         }
     }
-    // ④ ## 正则段剥离（取第一段作为选择器）
-    let main = r.split("##").next().unwrap_or(r);
-    let main = main.trim();
-    // ⑤ a@text → css:a
-    if let Some((sel, _attr)) = main.rsplit_once('@') {
-        if !sel.is_empty() && !sel.contains(' ') && !sel.contains('$') {
-            return Ok(format!("css:{sel}"));
+
+    // @ 链拆分（跳过属性值内的 @——保守：只在非引号内分割）
+    let parts: Vec<&str> = if forced_ns == "xpath:" || forced_ns == "json:" {
+        vec![work]
+    } else {
+        work.split('@').filter(|p| !p.is_empty()).collect()
+    };
+    if parts.is_empty() {
+        return Err("空规则".into());
+    }
+    // 链尾属性步（text/attr/索引/tag 链）
+    let mut base = parts[0].trim().to_string();
+    let mut steps: Vec<String> = parts[1..].iter().map(|x| x.trim().to_string()).collect();
+
+    let mut pick: Option<Vec<i64>> = None;
+    let mut attr: Option<String> = None;
+    let mut css_extra = String::new(); // tag 链合成的后代选择器
+    // base 前缀翻译（JSoup 风格）
+    if forced_ns.is_empty() {
+        if base.starts_with('/') || base.starts_with("//") {
+            return Ok(Value::String(format!("xpath:{base}")));
+        }
+        if base.starts_with("$.") || base.starts_with("$[") {
+            return Ok(Value::String(format!("json:{base}")));
+        }
+        // class.X / tag.X / id.X 前缀
+        if let Some(rest) = base.strip_prefix("class.") {
+            base = format!(".{rest}");
+        } else if let Some(rest) = base.strip_prefix("tag.") {
+            base = rest.to_string();
+        } else if let Some(rest) = base.strip_prefix("id.") {
+            base = format!("#{rest}");
+        }
+        // JSoup 数字下标尾巴：class.small.0 / tag.td.4 → pick（最后一段为纯数字）
+        if let Some(dot) = base.rfind('.') {
+            let tail = &base[dot + 1..];
+            if let Ok(n) = tail.parse::<i64>() {
+                base = base[..dot].to_string();
+                pick.get_or_insert_with(Vec::new).push(n);
+            }
+        }
+        // JSoup `[attr~=a|b|c]` → scraper 不支持竖线 → 展开 :is()
+        if base.contains("[") && base.contains("~=") {
+            let mut expanded = base.clone();
+            while let Some(lb) = expanded.find("[") {
+                let Some(rb) = expanded[lb..].find(']') else { break };
+                let inner = &expanded[lb + 1..lb + rb];
+                if let Some(eq) = inner.find("~=") {
+                    let attr = inner[..eq].trim().to_string();
+                    let vals = inner[eq + 2..].trim().to_string();
+                    if vals.contains('|') && !vals.is_empty() {
+                        let alts: Vec<String> = vals
+                            .split('|')
+                            .map(|v| format!("[{attr}~={v}]"))
+                            .collect();
+                        expanded = format!(
+                            "{}:is({}){}",
+                            &expanded[..lb],
+                            alts.join(","),
+                            &expanded[lb + rb + 1..]
+                        );
+                        continue;
+                    }
+                }
+                break;
+            }
+            base = expanded;
         }
     }
-    if main.starts_with('/') || main.starts_with("//") {
-        return Ok(format!("xpath:{main}"));
+
+    for step in &steps {
+        let st = step.trim();
+        if st == "text" || st == "all" {
+            continue; // 默认 text 提取
+        }
+        if st == "owntext" || st == "html" {
+            // 对应命名空间——保守处理：owntext/html 作为后续 transform 由人工确认
+            continue;
+        }
+        // 纯数字（含负数）→ pick 下标
+        if let Ok(n) = st.parse::<i64>() {
+            pick.get_or_insert_with(Vec::new).push(n);
+            continue;
+        }
+        // tag.X → 后代选择器
+        if let Some(rest) = st.strip_prefix("tag.") {
+            css_extra = format!("{css_extra} {rest}").trim().to_string();
+            continue;
+        }
+        // 其余非空且不含选择器特殊符号 → 属性名
+        if !st.is_empty()
+            && st.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':')
+        {
+            attr.get_or_insert_with(|| st.to_string());
+            continue;
+        }
+        return Err(format!("链步 `{st}` 无法翻译（Legado 方言），需人工处理"));
     }
-    if main.starts_with("$.") || main.starts_with("$[") {
-        return Ok(format!("json:{main}"));
+    let _ = has_regex_tail;
+
+    // 组装
+    let sel_base = if forced_ns == "css:" || forced_ns.is_empty() {
+        format!("css:{base}{css_extra}")
+    } else {
+        format!("{forced_ns}{base}")
+    };
+    // attr 直接合入对象选择器
+    if let Some(a) = attr {
+        return Ok(serde_json::json!({ "$": sel_base, "attr": a }));
     }
-    // ⑥ 裸 JSON 点路径（data.books → json:$.data.books；Legado isJSON 语境常见）
-    if !main.contains('/') && !main.contains('@') && main.contains('.')
-        && main.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '[' || c == ']')
-        && main.split('.').all(|p| !p.is_empty())
-    {
-        return Ok(format!("json:$.{main}"));
+    if let Some(p) = pick {
+        return Ok(serde_json::json!({ "$": sel_base, "pick": p }));
     }
-    Ok(format!("css:{main}"))
+    Ok(Value::String(sel_base))
 }
 
 /// 把规则字段写入 out；@js:/data: 规则自动进 changed 报告。
@@ -1016,7 +1138,7 @@ fn put_rule(
 ) {
     match legado_rule_to_rsl(rule) {
         Ok(r) => {
-            out[key] = Value::String(r);
+            out[key] = r;
         }
         Err(reason) => {
             changed.push(serde_json::json!({
