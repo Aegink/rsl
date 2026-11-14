@@ -60,7 +60,7 @@ pub fn record_stage(
         "body_base64": rec.body_base64,
     });
     std::fs::create_dir_all(out_dir).ok();
-    std::fs::write(&path, serde_json::to_vec_pretty(&doc).unwrap()).map_err(|e| {
+    std::fs::write(&path, serde_json::to_vec_pretty(&doc).unwrap_or_default()).map_err(|e| {
         Diagnostic::new(
             crate::error::Code::EScript,
             path.display().to_string(),

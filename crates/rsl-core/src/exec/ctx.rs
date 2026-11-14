@@ -2,7 +2,7 @@
 //! `exec` 不依赖 `http`——传输经 `ports::Transport` 注入。
 
 use crate::error::{Code, Diagnostic};
-use crate::ir::{CompiledSource, ParamExpr, SelectorIR};
+use crate::ir::{CompiledSource, ParamExpr};
 use crate::ports::*;
 use crate::sugar::Seg;
 use serde_json::Value;
@@ -52,6 +52,10 @@ pub struct ExecCx<'a> {
     pub stage: RefCell<String>,
     /// 慢速标记：取消。
     pub cancelled: std::sync::atomic::AtomicBool,
+    /// 协作式取消令牌（A5）：宿主注入句柄，跨线程置位。
+    pub cancel_token: Option<CancelToken>,
+    /// 本阶段是否命中取消（partial 传播；run_stage 读后置 partial=true）。
+    pub cancelled_hit: std::cell::Cell<bool>,
 }
 
 impl<'a> ExecCx<'a> {
@@ -79,6 +83,8 @@ impl<'a> ExecCx<'a> {
             lib_steps: std::cell::Cell::new(0),
             stage: RefCell::new(String::new()),
             cancelled: std::sync::atomic::AtomicBool::new(false),
+            cancel_token: None,
+            cancelled_hit: std::cell::Cell::new(false),
         }
     }
 
@@ -87,6 +93,27 @@ impl<'a> ExecCx<'a> {
     }
 
     /// var: 路径求值（"book.tocUrl"、"kw"、"filter.mode"）。
+    /// 协作式取消检查点（A5）：命中即记录 E_CANCELLED 诊断（仅首推）并标记 cancelled_hit。
+    /// 返回 true 表示调用方应在最近的边界（页/步/请求前）停止并返回部分结果。
+    pub fn check_cancelled(&self) -> bool {
+        let hit = self
+            .cancel_token
+            .as_ref()
+            .map(|t| t.is_cancelled())
+            .unwrap_or(false)
+            || self.cancelled.load(std::sync::atomic::Ordering::SeqCst);
+        if hit && !self.cancelled_hit.get() {
+            self.cancelled_hit.set(true);
+            self.warnings.borrow_mut().push(Diagnostic::new(
+                Code::ECancelled,
+                format!("stages.{}", self.stage.borrow()),
+                "执行被宿主取消",
+                "已返回部分结果；检查取消时机或重试",
+            ));
+        }
+        hit
+    }
+
     pub fn get_var(&self, path: &str) -> Option<Value> {
         if let Some(v) = self.vars.get(path) {
             return Some(v.clone());
@@ -137,7 +164,7 @@ impl<'a> ExecCx<'a> {
     /// 限流等待（T2.4：对同一源串行化；可观测）。
     pub fn rate_wait(&self) {
         if let Some(rate) = &self.src.http.rate {
-            use std::sync::atomic::{AtomicI64, Ordering};
+            
             use std::time::{Duration, Instant};
             static LAST: OnceCellLog = OnceCellLog::new();
             let now = Instant::now().elapsed().as_millis() as i64;
@@ -162,7 +189,7 @@ impl OnceCellLog {
         OnceCellLog(std::sync::Mutex::new(None))
     }
     fn get_or(&self, v: i64) -> i64 {
-        let mut g = self.0.lock().unwrap();
+        let mut g = self.0.lock().unwrap_or_else(|e| e.into_inner());
         let r = g.unwrap_or(v);
         *g = Some(v);
         r

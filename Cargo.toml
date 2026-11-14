@@ -5,6 +5,7 @@ members = [
     "crates/rsl-cli",
     "crates/rsl-ffi",
     "crates/rsl-wasm",
+    "crates/rsl-lsp",
 ]
 
 [workspace.package]
@@ -35,13 +36,16 @@ ctr = "0.9"
 des = "0.8"
 cipher = { version = "0.4", features = ["alloc", "block-padding"] }
 inout = "0.1"
-scraper = "0.20"
-ego-tree = "0.6"
+scraper = "0.29"
+ego-tree = "0.11"
 ureq = { version = "2", default-features = false, features = ["tls", "gzip", "json"] }
 boa_engine = "0.20"
 boa_gc = "0.20"
 wasm-bindgen = "0.2"
 serde_yaml = "0.9"
+
+[profile.dev]
+debug = "line-tables-only"
 
 [profile.release]
 lto = "thin"

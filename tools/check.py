@@ -166,6 +166,31 @@ def main():
         else:
             print(f"✓ {p.name} 通过")
 
+    # ── #24 门禁扩展：L-infra 产物存在性（fuzz/基准报告归档，TASK-BOOK-2 §2.2#24）──
+    fuzz_report = ROOT / "scratch/fuzz/report/compile_str.json"
+    if fuzz_report.exists():
+        try:
+            d = json.loads(fuzz_report.read_text(encoding="utf-8"))
+            crashes = d.get("crashes", 1)
+            rounds = d.get("rounds", 0)
+            if crashes != 0 or rounds < 10000:
+                print(f"✗ fuzz 报告不达标：crashes={crashes} rounds={rounds}（{fuzz_report.name}）")
+                failures += 1
+            else:
+                print(f"✓ fuzz 长时报告：{d.get('target')} {rounds} 轮零 panic")
+        except Exception as e:
+            print(f"✗ fuzz 报告损坏：{e}")
+            failures += 1
+    else:
+        print(f"✗ 缺少 fuzz 长时报告：{fuzz_report}")
+        failures += 1
+    bench_report = ROOT / "docs/20261114_C5_engine_bench报告.md"
+    if bench_report.exists():
+        print("✓ 引擎基准报告归档存在")
+    else:
+        print("✗ 缺少引擎基准报告归档")
+        failures += 1
+
     print("结果:", "全部通过" if failures == 0 else f"{failures} 处问题")
     return 0 if failures == 0 else 1
 

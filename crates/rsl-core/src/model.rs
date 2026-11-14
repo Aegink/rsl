@@ -508,7 +508,7 @@ impl<'de> Deserialize<'de> for LetEntry {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let v = Value::deserialize(d)?;
         if v.is_string() {
-            return Ok(LetEntry::Str(v.as_str().unwrap().to_string()));
+            return Ok(LetEntry::Str(v.as_str().unwrap_or_default().to_string()));
         }
         let obj = v
             .as_object()
@@ -801,7 +801,7 @@ impl<'de> Deserialize<'de> for ScriptRef {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let v = Value::deserialize(d)?;
         if v.is_string() {
-            return Ok(ScriptRef::Str(v.as_str().unwrap().to_string()));
+            return Ok(ScriptRef::Str(v.as_str().unwrap_or_default().to_string()));
         }
         let obj = serde_json::from_value::<ScriptRefObj>(v).map_err(serde::de::Error::custom)?;
         Ok(ScriptRef::Obj(obj))
@@ -1015,7 +1015,7 @@ impl<'de> Deserialize<'de> for ProtectSpec {
         let v = Value::deserialize(d)?;
         match &v {
             Value::Array(arr) if arr.iter().all(|x| x.is_string()) => Ok(ProtectSpec::Literals(
-                arr.iter().map(|x| x.as_str().unwrap().to_string()).collect(),
+                arr.iter().map(|x| x.as_str().unwrap_or_default().to_string()).collect(),
             )),
             Value::Array(_) => Err(serde::de::Error::custom(
                 "protect 数组必须是字符串列表",

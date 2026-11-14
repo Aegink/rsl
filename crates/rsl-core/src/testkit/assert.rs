@@ -21,7 +21,7 @@ pub fn run_cases(
 }
 
 pub fn run_case(src_text: &str, case: &TestCase, fixtures_dir: &std::path::Path) -> CaseResult {
-    let mut fail = |detail: String| CaseResult {
+    let fail = |detail: String| CaseResult {
         name: case.name.clone(),
         ok: false,
         level: case.level,
@@ -310,7 +310,7 @@ fn parse_path_assert(e: &str) -> Result<(String, &str, String), String> {
         for op in ["==", "!=", "=~", "contains"] {
             if let Some(v) = rest.strip_prefix(op) {
                 let mut val = v.trim().to_string();
-                if (val.starts_with('"') && val.ends_with('"') && val.len() >= 2) {
+                if val.starts_with('"') && val.ends_with('"') && val.len() >= 2 {
                     val = val[1..val.len() - 1].to_string();
                 }
                 return Ok((path, op, val));

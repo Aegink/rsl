@@ -18,7 +18,7 @@ fn cache() -> &'static Mutex<HashMap<String, std::sync::Arc<scraper::Selector>>>
 
 pub fn compile_css(source: &str) -> Result<std::sync::Arc<scraper::Selector>, Diagnostic> {
     // forgiving 处理 :is/:where/:not/:has —— scraper 的 selectors crate 已按规范解析
-    let mut c = cache().lock().unwrap();
+    let mut c = cache().lock().unwrap_or_else(|e| e.into_inner());
     if let Some(s) = c.get(source) {
         return Ok(s.clone());
     }

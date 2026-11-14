@@ -190,7 +190,7 @@ pub enum XpOut {
     Strs(Vec<String>),
 }
 
-pub fn eval(doc: &Html, root: Option<NodeId>, src: &str) -> Option<XpOut> {
+pub fn eval(doc: &Html, _root: Option<NodeId>, src: &str) -> Option<XpOut> {
     let steps = parse(src)?;
     let mut cur: Vec<NodeId> = vec![];
     let mut is_str = false;
@@ -270,7 +270,7 @@ pub fn eval(doc: &Html, root: Option<NodeId>, src: &str) -> Option<XpOut> {
                             }
                         }
                     }
-                    is_str = true;
+let _ = true; // is_str（历史赋值不再读取）
                     return Some(XpOut::Strs(out));
                 }
             }

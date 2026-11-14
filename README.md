@@ -102,7 +102,7 @@ OK   a.b                      -> E_EXPR_SYNTAX
 | 7 | [`spec/COMPILER.md`](spec/COMPILER.md) | 实现者 | 编译流水线、引用图、类型推断、`E_COST` 成本分析、步骤图校验、IR、模块拆分 | ✅ |
 | 8 | [`spec/EXPRESSIONS.md`](spec/EXPRESSIONS.md) | 实现者 | `expr:` 子语言：文法、类型、内置函数（含加密族）、检查清单 | ✅ |
 | 9 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) | **派工 / 验收** | 施工图：58 条能力 × 九维交叉验证矩阵、T1–T6 任务分解、前置文档全量落位、缺口 G-01–G-12 | ✅ |
-| 9.5 | [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) | **增强派工** | 内核增强任务书 v1.0：更稳定（fuzz/proptest/取消）、更好用（LSP/watch/import）、更强大（QuickJS/JSONPath 9535/CSS4）——24 能力 × 9 维矩阵 | Draft |
+| 9.5 | [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) | **增强派工** | 内核增强任务书 v1.0：更稳定（fuzz/proptest/取消）、更好用（LSP/watch/import）、更强大（QuickJS/JSONPath 9535/CSS4）——24 能力 × 9 维矩阵 | ✅ Active（§7.4 实施记录） |
 | 10 | [`spec/GAP-AUDIT.md`](spec/GAP-AUDIT.md) | 改规范前先看 | 与现网引擎的差距矩阵（A1–A44）、取舍决定、明确不采纳的设计 | ✅ |
 | 11 | [`spec/KERNEL-COMPARE.md`](spec/KERNEL-COMPARE.md) | 关心架构的人 | 内核级逐层对比：Rimchars Archive v15（1742 个 `.kt` / 38.7 万行）vs RSL，58 条差异 + 源码行号 + 12 处 Legado 更强的地方 | ✅ |
 | 12 | [`spec/ROADMAP.md`](spec/ROADMAP.md) | 所有人 | 里程碑 M1–M6 与验收口径（计划，不是规范） | ✅ |

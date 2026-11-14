@@ -124,7 +124,7 @@ fn build(cx: &mut Cx, v: serde_json::Value) -> Option<CompiledSource> {
                 ));
                 return None;
             }
-            let major: u32 = s.split('.').next().unwrap().parse().unwrap_or(0);
+            let major: u32 = s.split('.').next().unwrap_or_default().parse().unwrap_or(0);
             if major != 2 {
                 cx.err(Diagnostic::new(
                     Code::EVersionUnsupported,
@@ -238,8 +238,7 @@ fn build(cx: &mut Cx, v: serde_json::Value) -> Option<CompiledSource> {
 
     // ── http ──
     let http = build_http(cx, src.http.as_ref(), &refs::global_scope(&cx.vars));
-    if http.is_none() { return None; }
-    let http = http.unwrap();
+    let Some(http) = http else { return None; };
 
     // ── limits ──
     let limits = build_limits(cx, src.limits.as_ref());
@@ -542,7 +541,7 @@ fn build(cx: &mut Cx, v: serde_json::Value) -> Option<CompiledSource> {
 
 // ───────────────────────── http / limits ─────────────────────────
 
-fn build_http(cx: &mut Cx, cfg: Option<&model::HttpCfg>, scope: &refs::Scope) -> Option<HttpIR> {
+fn build_http(cx: &mut Cx, cfg: Option<&model::HttpCfg>, _scope: &refs::Scope) -> Option<HttpIR> {
     let mut headers = vec![];
     if let Some(c) = cfg {
         warn_unknown(&c.extra, "http", cx);
@@ -1234,7 +1233,7 @@ fn build_paginate(cx: &mut Cx, pg: &model::PaginateCfg, path: &str, scope: &refs
                 return None;
             }
             let mut sels = vec![];
-            for (i, s) in pg.next.as_ref().unwrap().0.iter().enumerate() {
+            for (i, s) in pg.next.as_ref().map(|n| &n.0).into_iter().flatten().enumerate() {
                 match compile_selector(cx, s, &format!("{path}.next[{i}]"), scope, None, false) {
                     Some(ir) => sels.push(ir),
                     None => return None,
@@ -1918,11 +1917,14 @@ fn build_where(
         })
     };
     let first = keys[0].clone();
-    let mut out = build_one(cx, &first, m.get(&first).unwrap(), path)?;
+    let Some(first_sel) = m.get(&first) else { return None; };
+    let mut out = build_one(cx, &first, first_sel, path)?;
     // 多键 AND：用 Has 链不合适——保留第一个，其余在运行期由 raw 重建
     // （编译期校验各键合法即可）
     for k in keys.iter().skip(1) {
-        build_one(cx, k, m.get(k).unwrap(), &format!("{path}.{k}"))?;
+        if let Some(sel) = m.get(k) {
+            build_one(cx, k, sel, &format!("{path}.{k}"))?;
+        }
     }
     // 多键：包一层 Not(Not(...)) 不行——直接返回第一个键的结果，多键校验已完成
     // 运行期按 raw 重建；这里保底返回单键 IR
@@ -1958,11 +1960,7 @@ fn compile_step(
     let p = &t.params;
     let step = match t.kind {
         StepKind::Trim => {
-            let chars = if p.is_array() {
-                Some(p.as_array().unwrap().iter().filter_map(|x| x.as_str().map(String::from)).collect())
-            } else {
-                None
-            };
+            let chars = p.as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect());
             StepIR::Trim { chars }
         }
         StepKind::Replace => {
@@ -2371,7 +2369,7 @@ fn build_login(cx: &mut Cx, cfg: &model::LoginCfg) -> Result<LoginIR, ()> {
     // 步骤编译
     let mut steps_ir: Vec<LoginStepIR> = vec![];
     if is_multi {
-        let steps = cfg.steps.as_ref().unwrap();
+        let Some(steps) = cfg.steps.as_ref() else { return Err(()); };
         for (i, st) in steps.iter().enumerate() {
             warn_unknown(&st.extra, &format!("login.steps[{i}]"), cx);
             let id = st.id.clone().unwrap_or_default();
@@ -2455,7 +2453,8 @@ fn build_login(cx: &mut Cx, cfg: &model::LoginCfg) -> Result<LoginIR, ()> {
             }
         }
         let scope = refs::login_step_scope(&refs::global_scope(&cx.vars), fields.iter().map(|f| f.key.clone()).collect::<Vec<_>>().as_slice());
-        let submit = build_submit(cx, cfg.submit.as_ref().unwrap(), "login.submit", &scope)?;
+        let Some(submit_cfg) = cfg.submit.as_ref() else { return Err(()); };
+        let submit = build_submit(cx, submit_cfg, "login.submit", &scope)?;
         steps_ir.push(LoginStepIR {
             id: "login".into(),
             fields,

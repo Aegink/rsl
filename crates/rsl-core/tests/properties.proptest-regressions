@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 8ec9a7747844d116114a1bedc7fc245ed5c8b82bedd9a2851e180ea53544ba00 # shrinks to miss = 1
+cc 246b3c43920f4cfd25b1a95745a5b5a94ad09d4e347d46a9b88244bad44d2b57 # shrinks to id = "a", title = "", sel = "css:a.title", trims = 0
+cc c0f3e2149f802878667b0d83072dd03a0b77857fadd582d959f0be3d3adf4823 # shrinks to sel = "expr:\"\""
+cc c684e1e36b98270488e1cf937f1a4aea64997dff93e6acf013dcfd5ffcd08286 # shrinks to sel = "xpath://"

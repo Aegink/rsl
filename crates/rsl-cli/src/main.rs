@@ -2,22 +2,48 @@
 
 use rsl_core::analyze;
 use rsl_core::exec::ctx::ExecCx;
-use rsl_core::ports::{Clock, MemoryCookieStore, SystemClock};
+use rsl_core::ports::{MemoryCookieStore, SystemClock};
 use rsl_core::stage::{run_stage, HostCaps, ResponseReuse, RunInputs};
 use rsl_core::testkit;
 use serde_json::Value;
-use rsl_core::testkit::lint::{lint, RULE_TABLE};
+use rsl_core::testkit::lint::lint;
 use std::path::{Path, PathBuf};
 
+mod fuzz;
+mod import;
+
 fn main() {
+    // windows-gnu 链接器默认主线程栈过小（深递归解析/编译会溢出）——
+    // 挪到 64MB 栈的工作线程执行（同 rustc 自身做法）。
     let args: Vec<String> = std::env::args().skip(1).collect();
+    let spawned = std::thread::Builder::new()
+        .stack_size(64 * 1024 * 1024)
+        .spawn({
+            let args = args.clone();
+            move || run_main(args)
+        });
+    let code = match spawned {
+        Ok(h) => match h.join() {
+            Ok(c) => c,
+            Err(_) => {
+                eprintln!("E_PANIC: 内部 panic（已捕获）；输入已保留，请上报最小复现");
+                1
+            }
+        },
+        Err(_) => run_main(args),
+    };
+    std::process::exit(code);
+}
+
+fn run_main(args: Vec<String>) -> i32 {
     if args.is_empty() {
         print_help();
-        std::process::exit(2);
+        return 2;
     }
     let cmd = args[0].as_str();
     let rest = &args[1..];
-    let code = match cmd {
+    // A4 panic 边界：命令入口 catch_unwind —— 恶意/畸形输入不崩进程（TASK-BOOK-2 §3.1 A4）
+    match std::panic::catch_unwind(|| match cmd {
         "lint" => cmd_lint(rest),
         "compile" => cmd_compile(rest),
         "run" => cmd_run(rest),
@@ -27,6 +53,8 @@ fn main() {
         "pack" => cmd_pack(rest),
         "convert" => cmd_convert(rest),
         "explain" => cmd_explain(rest),
+        "fuzz" => fuzz::cmd_fuzz(rest),
+        "import" => import::cmd_import(rest),
         "help" | "--help" | "-h" => {
             print_help();
             0
@@ -40,8 +68,13 @@ fn main() {
             print_help();
             2
         }
-    };
-    std::process::exit(code);
+    }) {
+        Ok(code) => code,
+        Err(_) => {
+            eprintln!("E_PANIC: 内部 panic（已捕获）；输入已保留，请上报最小复现");
+            1
+        }
+    }
 }
 
 fn print_help() {
@@ -375,26 +408,37 @@ fn cmd_record(rest: &[String]) -> i32 {
 
 fn cmd_test(rest: &[String]) -> i32 {
     if rest.is_empty() {
-        eprintln!("用法：rsl test <src> [--cases tests/cases/<id>.yaml]");
+        eprintln!("用法：rsl test <src> [--cases tests/cases/<id>.yaml] [--watch]");
         return 2;
     }
-    let src_path = &rest[0];
+    let src_path = rest[0].clone();
     let mut cases_file = PathBuf::from(format!(
         "tests/cases/{}.yaml",
-        Path::new(src_path)
+        Path::new(&src_path)
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("cases")
     ));
+    let mut watch = false;
     let mut i = 1;
     while i < rest.len() {
         if rest[i] == "--cases" {
             cases_file = PathBuf::from(rest.get(i + 1).map(|s| s.as_str()).unwrap_or(""));
             i += 2;
+        } else if rest[i] == "--watch" {
+            watch = true;
+            i += 1;
         } else {
             i += 1;
         }
     }
+    if watch {
+        return cmd_test_watch(&src_path, &cases_file);
+    }
+    run_test_once(&src_path, &cases_file)
+}
+
+fn run_test_once(src_path: &str, cases_file: &Path) -> i32 {
     let src_text = match load(src_path) {
         Ok(t) => t,
         Err(e) => {
@@ -430,6 +474,62 @@ fn cmd_test(rest: &[String]) -> i32 {
     } else {
         1
     }
+}
+
+/// B2 watch（TASK-BOOK-2 §3.2 B2）：notify 监听源/fixture/用例变更，500ms 防抖增量重跑。
+/// Ctrl-C 直接终止（stdio 一次性输出，无残留状态）。
+fn cmd_test_watch(src_path: &str, cases_file: &Path) -> i32 {
+    use notify::Watcher;
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut watcher = match notify::recommended_watcher(tx) {
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("watcher 初始化失败：{e}");
+            return 2;
+        }
+    };
+    // 监听：源文件目录、用例文件目录、fixtures 目录
+    let mut watch_dirs: Vec<PathBuf> = vec![];
+    if let Some(d) = Path::new(src_path).parent() {
+        watch_dirs.push(d.to_path_buf());
+    }
+    if let Some(d) = cases_file.parent() {
+        watch_dirs.push(d.to_path_buf());
+    }
+    if let Some(d) = cases_file
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|p| p.join("fixtures"))
+    {
+        watch_dirs.push(d);
+    }
+    for d in &watch_dirs {
+        if let Err(e) = watcher.watch(d, notify::RecursiveMode::Recursive) {
+            eprintln!("监听 {} 失败：{e}", d.display());
+        }
+    }
+    println!(
+        "[watch] 监听 {} 个目录（源/用例/fixtures）；Ctrl-C 退出",
+        watch_dirs.len()
+    );
+    // 首跑
+    let mut last = run_test_once(src_path, cases_file);
+    // 防抖循环：事件 → 500ms 静默 → 重跑
+    loop {
+        match rx.recv() {
+            Ok(_) => {
+                // 排空积压事件
+                while rx.try_recv().is_ok() {}
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                while rx.try_recv().is_ok() {}
+                println!("[watch] 变更触发重跑 @ {}", crate::fuzz::chrono_like_now());
+                last = run_test_once(src_path, cases_file);
+            }
+            Err(_) => break,
+        }
+    }
+    let _ = last;
+    0
 }
 
 // ───────────────────────── build（确定性装配） ─────────────────────────
@@ -1024,7 +1124,7 @@ fn legado_rule_to_rsl(rule: &str) -> Result<Value, String> {
     }
     // 链尾属性步（text/attr/索引/tag 链）
     let mut base = parts[0].trim().to_string();
-    let mut steps: Vec<String> = parts[1..].iter().map(|x| x.trim().to_string()).collect();
+    let steps: Vec<String> = parts[1..].iter().map(|x| x.trim().to_string()).collect();
 
     let mut pick: Option<Vec<i64>> = None;
     let mut attr: Option<String> = None;

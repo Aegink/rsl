@@ -8,21 +8,44 @@
   "version": "1.0.0",
   "requires": {
     "engine": ">=2.0 <3.0",
-    "features": ["js"],
+    "features": [
+      "js"
+    ],
     "crypto": [],
-    "selectorLevel": { "css": "4", "jsonpath": "9535" }
+    "selectorLevel": {
+      "css": "4",
+      "jsonpath": "9535"
+    }
   },
   "http": {
-    "headers": { "User-Agent": "rsl-edge/1.0" },
+    "headers": {
+      "User-Agent": "rsl-edge/1.0"
+    },
     "timeout": 15000,
-    "retry": { "times": 1, "backoff": "none", "on": [503] },
+    "retry": {
+      "times": 1,
+      "backoff": "none",
+      "on": [
+        503
+      ]
+    },
     "cookies": "session"
   },
   "merge": {
-    "key": ["name", "author"],
-    "normalize": ["trim"],
+    "key": [
+      "name",
+      "author"
+    ],
+    "normalize": [
+      "trim"
+    ],
     "crossBucket": true,
-    "order": ["exact", "contains", "sources", "weight"],
+    "order": [
+      "exact",
+      "contains",
+      "sources",
+      "weight"
+    ],
     "weight": 1.0
   },
   "lib": {
@@ -33,53 +56,157 @@
     "search": {
       "request": {
         "url": "https://edge.example.com/search",
-        "params": { "q": "var:kw" },
+        "params": {
+          "q": "var:kw"
+        },
         "response": "html"
       },
       "out": {
-        "list": "css:ul.list > li",
-        "where": { "has": "css:a.t" },
+        "list": {
+          "$": "css:ul.list > li",
+          "where": {
+            "has": "css:a.t"
+          }
+        },
+        "where": {
+          "has": "css:a.t"
+        },
         "map": {
-          "name": { "$": "css:li", "transform": [{ "zip": { "with": "css:ul.list > li .price", "sep": " · " } }] },
-          "url": { "$": "css:a.t", "attr": "href", "transform": [{ "absolute": true }] },
-          "price": { "$": "css:.price", "optional": true, "default": "" }
+          "name": {
+            "$": "text",
+            "transform": [
+              {
+                "trim": true
+              }
+            ]
+          },
+          "url": {
+            "$": "css:a.t",
+            "attr": "href",
+            "transform": [
+              {
+                "absolute": true
+              }
+            ]
+          },
+          "price": {
+            "$": "css:.price",
+            "optional": true,
+            "default": ""
+          }
         },
         "emptyOk": true
       },
-      "paginate": { "kind": "page", "pageVar": "page", "max": 5, "stopIf": { "empty": "out.list", "noNew": true } }
+      "paginate": {
+        "kind": "page",
+        "pageVar": "page",
+        "max": 5,
+        "stopIf": {
+          "empty": "out.list",
+          "noNew": true
+        }
+      }
     },
     "detail": {
       "request": {
         "url": "var:book.url",
         "response": "html"
       },
-      "parse": { "$": "css:div#__DATA__", "transform": [{ "html": true }, { "json": true }] },
+      "parse": {
+        "$": "css:div#__DATA__",
+        "transform": [
+          {
+            "html": true
+          },
+          {
+            "json": true
+          }
+        ]
+      },
       "out": {
-        "name": { "$": "json:$.title", "transform": [{ "trim": true }] },
-        "tocUrl": { "$": "json:$.toc", "optional": true, "default": "var:book.url" }
+        "name": {
+          "$": "json:$.title",
+          "transform": [
+            {
+              "trim": true
+            }
+          ]
+        },
+        "tocUrl": {
+          "$": "json:$.toc",
+          "optional": true,
+          "default": "var:book.url"
+        }
       }
     },
     "toc": {
-      "request": { "url": "var:book.tocUrl", "response": "html" },
+      "request": {
+        "url": "var:book.tocUrl",
+        "response": "html"
+      },
       "order": "auto",
       "dedupe": "url",
       "out": {
-        "list": "css:ul.chapters > li",
-        "where": { "not": { "has": "css:.hidden" } },
+        "list": {
+          "$": "css:ul.chapters > li",
+          "where": {
+            "not": {
+              "has": "css:.hidden"
+            }
+          }
+        },
+        "where": {
+          "not": {
+            "has": "css:.hidden"
+          }
+        },
         "map": {
-          "title": { "$": "css:a", "transform": [{ "trim": true }] },
-          "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] }
+          "title": {
+            "$": "css:a",
+            "transform": [
+              {
+                "trim": true
+              }
+            ]
+          },
+          "url": {
+            "$": "css:a",
+            "attr": "href",
+            "transform": [
+              {
+                "absolute": true
+              }
+            ]
+          }
         }
       }
     },
     "content": {
-      "request": { "url": "var:chapter.url", "response": "html" },
+      "request": {
+        "url": "var:chapter.url",
+        "response": "html"
+      },
       "out": {
-        "title": { "$": "css:h1", "transform": [{ "trim": true }], "optional": true },
+        "title": {
+          "$": "css:h1",
+          "transform": [
+            {
+              "trim": true
+            }
+          ],
+          "optional": true
+        },
         "content": {
           "$": "css:div#content",
-          "paragraphs": { "split": "auto", "minLength": 2 },
-          "transform": [{ "trim": true }]
+          "paragraphs": {
+            "split": "auto",
+            "minLength": 2
+          },
+          "transform": [
+            {
+              "trim": true
+            }
+          ]
         }
       }
     }

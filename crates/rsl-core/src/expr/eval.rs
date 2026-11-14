@@ -195,7 +195,7 @@ fn eval_bin(op: BinOp, a: &Expr, b: &Expr, host: &dyn ExprHost, path: &str) -> R
                     }
                     x % y
                 }
-                _ => unreachable!(),
+                _ => return Err(type_err(path, "不支持的操作符")),
             };
             Ok(EVal::Num(v))
         }
@@ -210,7 +210,7 @@ fn eval_bin(op: BinOp, a: &Expr, b: &Expr, host: &dyn ExprHost, path: &str) -> R
                 BinOp::Le => x <= y,
                 BinOp::Gt => x > y,
                 BinOp::Ge => x >= y,
-                _ => unreachable!(),
+                _ => return Err(type_err(path, "不支持的比较操作符")),
             };
             Ok(EVal::Bool(v))
         }
@@ -263,7 +263,6 @@ fn eval_pure(fid: FnId, args: &[EVal], path: &str) -> Result<EVal, Diagnostic> {
                     (None, _) => n,
                     (Some(b), FnId::Min) => b.min(n),
                     (Some(b), _) => b.max(n),
-                    (_, _) => n,
                 });
             }
             EVal::Num(best.unwrap_or(0.0))
@@ -313,6 +312,6 @@ fn eval_pure(fid: FnId, args: &[EVal], path: &str) -> Result<EVal, Diagnostic> {
         }
         FnId::Num => EVal::Num(need(0)?.to_num().unwrap_or(0.0)),
         FnId::Str => EVal::Str(need(0)?.to_str()),
-        _ => unreachable!("非纯函数不应进入 eval_pure"),
+        _ => return Err(type_err(path, "非纯函数不应进入 eval_pure")),
     })
 }

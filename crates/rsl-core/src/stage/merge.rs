@@ -197,5 +197,4 @@ pub fn merged_count(rows: &[Value]) -> usize {
     rows.len()
 }
 
-#[allow(dead_code)]
-fn _keep_import(M: &M) {}
+// 占位导入已移除（无副作用）

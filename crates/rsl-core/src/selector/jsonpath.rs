@@ -1,6 +1,7 @@
-//! JSONPath（RFC 9535 实用子集，T3.2）：`$`、`.name`、`['name']`、`[0]`/`[-1]`、
-//! `[*]`、`[start:end:step]`、`..`（后代递归）、`[?(@.a=="b")]` 过滤。
-//! 完整 RFC 9535 过滤表达式归宿主更高等级。
+//! JSONPath（TASK-BOOK-2 C2 / V2-D3）：接口不变的手写子集（`$`、`.name`、`['name']`、
+//! `[0]`/`[-1]`、`[*]`、`[start:end:step]`、`..`、`[?(@.a=="b")]`）+ RFC 9535 兼容层。
+//! 手写解析失败的路径交由 jsonpath-rust 1.0（RFC 9535 全合规：`[?@.x==false]` 简写、
+//! 数字/布尔比较、多选择器 union 等），以 `Seg::Raw` 原样求值；错误码与 path 格式不变。
 
 use serde_json::Value;
 
@@ -12,6 +13,8 @@ pub enum Seg {
     Slice(Option<i64>, Option<i64>, i64),
     Recursive, // .. 后跟 Child/Wildcard
     Filter { key: String, op: FilterOp, val: String },
+    /// RFC 9535 全量路径（手写子集之外）：原样保存，jsonpath-rust 求值。
+    Raw(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -21,8 +24,20 @@ pub enum FilterOp {
     Exists,
 }
 
-/// 解析 JSONPath。失败 → None。
+/// 解析 JSONPath。手写子集优先；子集之外回退 RFC 9535 全量引擎；都失败 → None。
 pub fn parse(src: &str) -> Option<Vec<Seg>> {
+    let s = src.trim();
+    if let Some(segs) = parse_subset(s) {
+        return Some(segs);
+    }
+    // RFC 9535 兼容层（C2）：jsonpath-rust 1.0（`[?@.x==false]` 简写、union、函数等）
+    if jsonpath_rust::parser::parse_json_path(s).is_ok() {
+        return Some(vec![Seg::Raw(s.to_string())]);
+    }
+    None
+}
+
+fn parse_subset(src: &str) -> Option<Vec<Seg>> {
     let s = src.trim();
     let s = s.strip_prefix('$').unwrap_or(s);
     let mut segs = vec![];
@@ -94,26 +109,38 @@ fn parse_bracket(inner: &str) -> Option<Seg> {
     if (t.starts_with('\'') && t.ends_with('\'')) || (t.starts_with('"') && t.ends_with('"')) {
         return Some(Seg::Child(t[1..t.len() - 1].to_string()));
     }
-    // [?(@.a=="b")] / [?(@.a)] / [?(@.a!="b")]
+    // [?(@.a=="b")] / [?(@.a)] / [?(@.a!="b")]；嵌套路径（key 含 .）交 RFC 引擎
     if let Some(rest) = t.strip_prefix("?(") {
         let f = rest.strip_suffix(')')?.trim();
         let f = f.strip_prefix('@').unwrap_or(f);
         if let Some(eq) = f.find("==") {
+            let key = f[..eq].trim().trim_start_matches('.').to_string();
+            if key.contains('.') {
+                return None;
+            }
             return Some(Seg::Filter {
-                key: f[..eq].trim().trim_start_matches('.').to_string(),
+                key,
                 op: FilterOp::Eq,
                 val: f[eq + 2..].trim().trim_matches(|c| c == '"' || c == '\'').to_string(),
             });
         }
         if let Some(eq) = f.find("!=") {
+            let key = f[..eq].trim().trim_start_matches('.').to_string();
+            if key.contains('.') {
+                return None;
+            }
             return Some(Seg::Filter {
-                key: f[..eq].trim().trim_start_matches('.').to_string(),
+                key,
                 op: FilterOp::Ne,
                 val: f[eq + 2..].trim().trim_matches(|c| c == '"' || c == '\'').to_string(),
             });
         }
+        let key = f.trim().trim_start_matches('.').to_string();
+        if key.contains('.') {
+            return None;
+        }
         return Some(Seg::Filter {
-            key: f.trim().trim_start_matches('.').to_string(),
+            key,
             op: FilterOp::Exists,
             val: String::new(),
         });
@@ -226,6 +253,16 @@ pub fn eval(v: &Value, segs: &[Seg]) -> Vec<Value> {
                     }
                 }
             }
+            Seg::Raw(src) => {
+                // RFC 9535 全量引擎（C2）：jsonpath-rust 1.0
+                for cv in &cur {
+                    if let Ok(hits) = jsonpath_rust::query::js_path(src.as_str(), cv) {
+                        for h in hits {
+                            out.push(h.val.clone());
+                        }
+                    }
+                }
+            }
         }
         cur = out;
     }
@@ -302,5 +339,5 @@ fn num_of(v: &Value) -> Option<f64> {
 
 /// 路径是否为数组语义（类型推断用）。
 pub fn is_list_path(p: &str) -> bool {
-    p.contains("[*]") || p.contains("[?(") || p.ends_with("[*]")
+    p.contains("[*]") || p.contains("[?(") || p.contains("[?@") || p.ends_with("[*]")
 }

@@ -2,8 +2,8 @@
 //! → transform（含 zip/protect）→ fallback → cond → optional/default。
 
 use super::ctx::{ExecCx, TraceEntry};
-use super::hosts::{CtxHost, ExprHostImpl};
-use super::value::{Block, Doc, HtmlDoc, Val};
+use super::hosts::ExprHostImpl;
+use super::value::{Block, HtmlDoc, Val};
 use crate::error::{Code, Diagnostic};
 use crate::ir::*;
 use crate::selector::{jsonpath, xpath};
@@ -176,7 +176,7 @@ impl<'a, 'c> Eval<'a, 'c> {
         Ok(val)
     }
 
-    fn eval_base(&mut self, base: &BaseSel, flags: &str) -> Result<Val, Diagnostic> {
+    fn eval_base(&mut self, base: &BaseSel, _flags: &str) -> Result<Val, Diagnostic> {
         Ok(match base {
             BaseSel::None => self.extract_text_default(self.current_scope_nodes())?,
             BaseSel::Css(src) => {
@@ -433,8 +433,30 @@ impl<'a, 'c> Eval<'a, 'c> {
         };
         let (split, min_len) = sel.paragraphs.clone().unwrap_or(("auto".into(), 1));
         let strips = self.cur_strips.borrow().clone();
-        let paras: Vec<String> = if split == "br" {
-            // br 模式：按 <br> 元素切块（保持 DOM 结构语义）
+        let is_line = split == "line";
+        // br：仅 <br> 断；block：块级元素断；auto：块级 + <br> 都断；line：文本行断
+        let break_on_br = split != "block";
+        let break_on_block = split != "br";
+        let paras: Vec<String> = if is_line {
+            let text = match &v {
+                Val::Node(id) => crate::selector::node_text_stripped(&doc.html, *id, false, &strips),
+                Val::NodeList(l) => l
+                    .iter()
+                    .map(|id| crate::selector::node_text_stripped(&doc.html, *id, false, &strips))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                Val::Str(s) => s.clone(),
+                Val::Json(serde_json::Value::String(sv)) => sv.clone(),
+                Val::Json(serde_json::Value::Array(a)) => a
+                    .iter()
+                    .filter_map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                _ => String::new(),
+            };
+            text.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect()
+        } else {
+            // DOM 结构切分（br/block/auto）
             let ids: Vec<NodeId> = match &v {
                 Val::Node(id) => vec![*id],
                 Val::NodeList(l) => l.clone(),
@@ -470,7 +492,11 @@ impl<'a, 'c> Eval<'a, 'c> {
                             }
                         }
                         scraper::node::Node::Element(el) => {
-                            if el.name() == "br" {
+                            let name = el.name();
+                            if name == "br" && break_on_br {
+                                out.push(std::mem::take(&mut cur));
+                            } else if break_on_block && is_block_element(name) {
+                                // 块级边界：当前段收束（text 节点在本元素内，先入段再断）
                                 out.push(std::mem::take(&mut cur));
                             }
                         }
@@ -482,25 +508,6 @@ impl<'a, 'c> Eval<'a, 'c> {
                 }
             }
             out.into_iter().map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect()
-        } else {
-            let text = match &v {
-                Val::Node(id) => crate::selector::node_text_stripped(&doc.html, *id, false, &strips),
-                Val::NodeList(l) => l
-                    .iter()
-                    .map(|id| crate::selector::node_text_stripped(&doc.html, *id, false, &strips))
-                    .collect::<Vec<_>>()
-                    .join(" "),
-                Val::Str(s) => s.clone(),
-                // JSON 字符串值（响应为 json 时 json:$.x 取到的就是字符串）
-                Val::Json(serde_json::Value::String(sv)) => sv.clone(),
-                Val::Json(serde_json::Value::Array(a)) => a
-                    .iter()
-                    .filter_map(|x| x.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                _ => String::new(),
-            };
-            split_paragraphs(&text, &split, vec![])
         };
         let filtered: Vec<String> = paras
             .into_iter()
@@ -631,7 +638,7 @@ impl<'a, 'c> Eval<'a, 'c> {
                 Val::StrList(l) => l.iter().map(|s| Val::Str(s.clone())).collect(),
                 Val::NodeList(l) => l.iter().map(|n| Val::Node(*n)).collect(),
                 Val::Json(Value::Array(a)) => a.iter().map(|x| Val::Json(x.clone())).collect(),
-                Val::BlockList(l) => l.iter().map(|b| Val::Json(serde_json::to_value(b).unwrap())).collect(),
+                Val::BlockList(l) => l.iter().map(|b| Val::Json(serde_json::to_value(b).unwrap_or(Value::Null))).collect(),
                 other => vec![other.clone()],
             }
         };
@@ -815,7 +822,7 @@ impl<'a, 'c> Eval<'a, 'c> {
                 if active_prot.is_none() {
                     active_prot = Some(make_placeholders(ls));
                 }
-                let (lits, phs) = active_prot.as_ref().unwrap();
+                let Some((lits, phs)) = active_prot.as_ref() else { continue; };
                 cur = apply_placeholders(cur, lits, phs);
                 continue;
             }
@@ -830,12 +837,12 @@ impl<'a, 'c> Eval<'a, 'c> {
         Ok(cur)
     }
 
-    pub fn apply_step(&mut self, val: Val, step: &StepIR, idx: usize) -> Result<Val, Diagnostic> {
+    pub fn apply_step(&mut self, val: Val, step: &StepIR, _idx: usize) -> Result<Val, Diagnostic> {
         crate::exec::ctx::tick_steps(self.cx, 1)?;
         // D5 运行时兑现：Node/NodeList 输入在步骤边界隐式文本提取
         let val = match val {
             Val::Node(_) | Val::NodeList(_) => {
-                let strips = self.cur_strips.borrow().clone();
+                let _strips = self.cur_strips.borrow().clone();
                 self.extract_text_kind(val, false)
             }
             other => other,
@@ -905,12 +912,15 @@ impl<'a, 'c> Eval<'a, 'c> {
             StepIR::Append(a) => self.map_strings(val, |s| format!("{s}{a}"))?,
             StepIR::Absolute { base } => {
                 let base_url = match base {
-                    Some(ParamExpr::Template(_)) | Some(ParamExpr::Expr(_)) | Some(ParamExpr::Raw(_)) => {
+                    Some(_) => {
                         let host = ExprHostImpl { cx: self.cx, doc_val: self.origin.clone() };
-                        crate::exec::ctx::eval_param(base.as_ref().unwrap(), &host, &self.path)?
-                            .as_str()
-                            .unwrap_or_default()
-                            .to_string()
+                        match base.as_ref() {
+                            Some(b) => crate::exec::ctx::eval_param(b, &host, &self.path)?
+                                .as_str()
+                                .unwrap_or_default()
+                                .to_string(),
+                            None => String::new(),
+                        }
                     }
                     _ => self.cx.get_var("baseUrl").and_then(|v| v.as_str().map(String::from)).unwrap_or_default(),
                 };
@@ -1303,7 +1313,7 @@ fn list_of(v: &Val) -> Vec<Val> {
         Val::StrList(l) => l.iter().map(|s| Val::Str(s.clone())).collect(),
         Val::NodeList(l) => l.iter().map(|n| Val::Node(*n)).collect(),
         Val::Json(Value::Array(a)) => a.iter().map(|x| Val::Json(x.clone())).collect(),
-        Val::BlockList(l) => l.iter().map(|b| Val::Json(serde_json::to_value(b).unwrap())).collect(),
+        Val::BlockList(l) => l.iter().map(|b| Val::Json(serde_json::to_value(b).unwrap_or(Value::Null))).collect(),
         other => vec![other.clone()],
     }
 }
@@ -1407,10 +1417,21 @@ fn expand_repl(tpl: &str, re: &regex::Regex, s: &str) -> String {
 }
 
 /// 段落切分（split: br/block/line/auto）。
+/// 块级元素集合（paragraphs split=block/auto 的分段边界，HTML 常见排版块）。
+fn is_block_element(name: &str) -> bool {
+    matches!(
+        name,
+        "p" | "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "li" | "blockquote"
+            | "section" | "article" | "header" | "footer" | "main" | "aside" | "nav"
+            | "figure" | "figcaption" | "table" | "tr" | "td" | "th" | "ul" | "ol"
+            | "dl" | "dt" | "dd" | "pre" | "hr"
+    )
+}
+
 pub fn split_paragraphs(text: &str, split: &str, strips: Vec<String>) -> Vec<String> {
     let _ = strips;
-    let nl: char = char::from_u32(10).unwrap();
-    let cr: char = char::from_u32(13).unwrap();
+    let nl = '\n';
+    let cr = '\r';
     let parts: Vec<String> = match split {
         "br" => text
             .replace("<br/>", "\u{000A}")
@@ -1476,7 +1497,7 @@ fn restore_placeholders(
     v: Val,
     lits: &[String],
     phs: &[String],
-    path: &str,
+    _path: &str,
 ) -> Result<Val, Diagnostic> {
     let restore = |s: String| -> Result<String, Diagnostic> {
         let mut out = s.clone();
@@ -1731,11 +1752,10 @@ pub fn s2t(s: &str) -> String {
 /// 日期格式化：from 任意（尽力提取），to = yyyy-MM-dd 等模式。
 pub fn transform_date(s: &str, to: &str, tz: i64) -> String {
     // 提取数字时间成分
-    let nums: Vec<String> = regex::Regex::new(r"\d+")
-        .unwrap()
-        .find_iter(s)
-        .map(|m| m.as_str().to_string())
-        .collect();
+    let nums: Vec<String> = match regex::Regex::new(r"\d+") {
+        Ok(re) => re.find_iter(s).map(|m| m.as_str().to_string()).collect(),
+        Err(_) => Vec::new(),
+    };
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64 + tz as i64 * 3600)

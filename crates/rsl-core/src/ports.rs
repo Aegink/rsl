@@ -141,18 +141,46 @@ pub struct MemoryCookieStore {
     pub map: std::sync::Mutex<std::collections::HashMap<String, String>>,
 }
 
+/// 协作式取消令牌（S§12.5 / TASK-BOOK-2 A5）：宿主持有句柄，可跨线程置位；
+/// generation 记录取消轮次（复位后递增），供宿主区分多轮执行。
+#[derive(Clone, Default)]
+pub struct CancelToken {
+    flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    generation: std::sync::Arc<std::sync::atomic::AtomicU64>,
+}
+
+impl CancelToken {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn is_cancelled(&self) -> bool {
+        self.flag.load(std::sync::atomic::Ordering::SeqCst)
+    }
+    pub fn cancel(&self) {
+        self.flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.generation.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+    /// 复位（新一轮执行前）；generation 保留历史轮次。
+    pub fn reset(&self) {
+        self.flag.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+    pub fn generation(&self) -> u64 {
+        self.generation.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
 impl CookieStore for MemoryCookieStore {
     fn get(&self, key: &str) -> Option<String> {
-        self.map.lock().unwrap().get(key).cloned()
+        self.map.lock().unwrap_or_else(|e| e.into_inner()).get(key).cloned()
     }
     fn set(&self, key: &str, value: &str, _persist: bool) {
         self.map
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(key.to_string(), value.to_string());
     }
     fn remove(&self, key: &str) {
-        self.map.lock().unwrap().remove(key);
+        self.map.lock().unwrap_or_else(|e| e.into_inner()).remove(key);
     }
 }
 

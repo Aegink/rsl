@@ -3,7 +3,6 @@
 use super::{RunInputs, send_request, decode_to_doc, doc_to_val};
 use crate::error::{Code, Diagnostic};
 use crate::exec::eval::Eval;
-use crate::exec::hosts::ExprHostImpl;
 use crate::exec::value::Val;
 use crate::exec::ctx::ExecCx;
 use crate::ir::{CompiledSource, LoginIR};
@@ -17,7 +16,7 @@ pub fn login_needed_for(src: &CompiledSource, _stage: &str) -> bool {
 }
 
 /// 确保登录态：check 通过或已登录则跳过；失败 → E_LOGIN_REQUIRED（宿主据此弹登录 UI）。
-pub fn ensure_login(src: &CompiledSource, cx: &mut ExecCx, inputs: &RunInputs) -> Result<(), Diagnostic> {
+pub fn ensure_login(src: &CompiledSource, cx: &mut ExecCx, _inputs: &RunInputs) -> Result<(), Diagnostic> {
     let Some(l) = &src.login else {
         return Err(Diagnostic::new(
             Code::ELoginRequired,
@@ -97,6 +96,15 @@ pub fn run_login_steps(
     let mut current: Option<String> = l.steps.first().map(|s| s.id.clone());
     let mut guard = 0usize;
     while let Some(step_id) = current {
+        // 宿主取消（A5）：登录步边界
+        if cx.check_cancelled() {
+            return Err(Diagnostic::new(
+                Code::ECancelled,
+                "login.steps",
+                "登录中途被取消",
+                "检查取消时机或重试",
+            ));
+        }
         guard += 1;
         if guard > 16 {
             return Err(Diagnostic::new(
@@ -122,7 +130,7 @@ pub fn run_login_steps(
             let resp = send_request(src, cx, &sub.req, &format!("login.steps[{}].submit.request", step.id))?;
             let doc = decode_to_doc(cx, &sub.req, &resp, "login.submit")?;
             let root = doc_to_val(&doc);
-            let doc_ref = Some(doc);
+            let _doc_ref = Some(doc);
             let mut e = Eval {
                 cx,
                 doc: None,

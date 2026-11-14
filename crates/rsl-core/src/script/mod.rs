@@ -4,6 +4,9 @@
 #[cfg(feature = "engine-js")]
 pub mod boa_engine;
 
+#[cfg(feature = "engine-quickjs")]
+pub mod quickjs_engine;
+
 use crate::error::Diagnostic;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -61,8 +64,18 @@ pub fn get_engine() -> Option<Rc<dyn ScriptEngine>> {
 
 /// 从编译产物创建并注入引擎（CLI/宿主入口调用一次）。
 /// 无 engine-js feature（WASM）：引擎由宿主 JS 环境充当，set_engine(None)。
+/// C1（V2-D2）：native 端 feature `engine-quickjs` 时用 QuickJS；wasm 端维持 Boa。
 pub fn setup_engine(src: &crate::ir::CompiledSource) {
-    #[cfg(feature = "engine-js")]
+    #[cfg(feature = "engine-quickjs")]
+    {
+        let engine = quickjs_engine::QuickJsEngine::new(
+            &src.lib.pure,
+            &src.lib.ctx,
+            src.limits.lib_steps,
+        );
+        set_engine(Some(std::rc::Rc::new(engine)));
+    }
+    #[cfg(all(feature = "engine-js", not(feature = "engine-quickjs")))]
     {
         let engine = boa_engine::BoaEngine::new(
             &src.lib.pure,
@@ -71,7 +84,7 @@ pub fn setup_engine(src: &crate::ir::CompiledSource) {
         );
         set_engine(Some(std::rc::Rc::new(engine)));
     }
-    #[cfg(not(feature = "engine-js"))]
+    #[cfg(not(any(feature = "engine-js", feature = "engine-quickjs")))]
     {
         let _ = src;
         set_engine(None);

@@ -37,8 +37,10 @@ fn scan(src: &str, tier_is_ctx: bool, path: &str) -> Result<Vec<String>, Diagnos
     if src.trim().is_empty() {
         return Ok(names);
     }
-    let re = Regex::new(r"(?m)function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)")
-        .expect("lib 扫描正则");
+    let re = match Regex::new(r"(?m)function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(([^)]*)\)") {
+        Ok(r) => r,
+        Err(_) => return Ok(names),
+    };
     for cap in re.captures_iter(src) {
         let name = cap[1].to_string();
         if tier_is_ctx {
@@ -107,7 +109,9 @@ pub fn scan_ctx_http(ctx_src: &str, entry: &str, depth: usize) -> bool {
         return true;
     }
     // 可到达的同档函数
-    let re = regex::Regex::new(r"([A-Za-z_$][A-Za-z0-9_$]*)\s*\(").unwrap();
+    let Ok(re) = regex::Regex::new(r"\b([A-Za-z_$][A-Za-z0-9_$]*)\s*\(") else {
+        return false;
+    };
     for cap in re.captures_iter(&body) {
         let callee = cap[1].to_string();
         if callee != entry && fn_source(ctx_src, &callee).is_some() {

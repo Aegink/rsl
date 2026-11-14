@@ -4,17 +4,16 @@ pub mod login;
 pub mod merge;
 
 use crate::error::{Code, Diagnostic};
-use crate::exec::ctx::{render_template_with_host, ExecCx, TraceEntry};
-use crate::exec::eval::{compile_regex, finalize_val, Eval};
+use crate::exec::ctx::{render_template_with_host, ExecCx};
+use crate::exec::eval::{finalize_val, Eval};
 use crate::exec::ctx::eval_param;
 use crate::exec::hosts::{CtxHost, ExprHostImpl};
 use crate::exec::value::{HtmlDoc, Val};
 use crate::http::{decode_response, encode_param, HttpClient, RateLimiter};
 use crate::ir::*;
-use crate::ports::{HttpRequest, HttpResponse, Transport};
+use crate::ports::{HttpRequest, HttpResponse};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
-use std::time::Instant;
 
 /// 阶段输出。
 #[derive(Debug, Clone)]
@@ -87,6 +86,7 @@ pub fn run_stage(
         }
     };
     *cx.stage.borrow_mut() = stage_name.to_string();
+    cx.cancelled_hit.set(false);
 
     // requiresLogin → check（T3.9 / S§4.5.3）
     if stage.requires_login || (is_host && stage.requires_login) {
@@ -174,7 +174,7 @@ pub fn run_stage(
         }
     }
 
-    Ok(StageResult { out, partial: false })
+    Ok(StageResult { out, partial: cx.cancelled_hit.get() })
 }
 
 fn json_type_name(v: &Value) -> &'static str {
@@ -488,6 +488,15 @@ pub fn send_request(
     req: &RequestIR,
     path: &str,
 ) -> Result<HttpResponse, Diagnostic> {
+    // 宿主取消（A5）：请求前边界 —— 分页中途取消保留已收页，本请求不发
+    if cx.check_cancelled() {
+        return Err(Diagnostic::new(
+            Code::ECancelled,
+            path,
+            "请求前已取消",
+            "已收页为部分结果；检查取消时机或重试",
+        ));
+    }
     if req.skip {
         // 不发起请求（§4.2.1 ①）：返回空响应
         return Ok(HttpResponse {
@@ -812,7 +821,7 @@ fn paginate_loop(
                                 String::new()
                             }
                             None => {
-                                let values = enumerate_values(&stage.paginate.as_ref().unwrap().kind);
+                                let values = stage.paginate.as_ref().map(|p| enumerate_values(&p.kind)).unwrap_or_default();
                                 values.get((page_no - 1) as usize).map(|v| v.to_string()).unwrap_or_default()
                             }
                         };
@@ -821,7 +830,11 @@ fn paginate_loop(
                 }
             }
         }
-        let (root, doc, resp) = fetch_with_request(src, stage, cx, &req, reuse, caps, stage_name)?;
+        // 宿主取消（A5）：页边界 —— 返回已收集页作为部分结果
+        if cx.check_cancelled() {
+            return Ok(Paginated::Pages(pages));
+        }
+        let (root, doc, _resp) = fetch_with_request(src, stage, cx, &req, reuse, caps, stage_name)?;
         // enumerate joinWith：只发一次（在第一页时把拼接值注入）
         // cursor 取值
         if let Some(p) = &stage.paginate {
@@ -1039,7 +1052,7 @@ fn fetch_with_request(
         HttpResponse {
             status: 200,
             headers: vec![],
-            body: reuse.detail_body.clone().unwrap(),
+            body: reuse.detail_body.clone().unwrap_or_default(),
             final_url: rendered_url.clone(),
             ms: 0,
         }
@@ -1314,6 +1327,10 @@ fn apply_next_page(
 
         if next_url.is_empty() || pages >= src.limits.max_pages {
             break;
+        }
+        // 宿主取消（A5）：nextPage 边界 —— 保留已拼内容
+        if cx.check_cancelled() {
+            return Ok(());
         }
         let mut req = RequestIR {
             url: Some(vec![crate::sugar::Seg::Lit(next_url.clone())]),

@@ -10,6 +10,8 @@ name = "rsl"
 path = "src/main.rs"
 
 [dependencies]
+ureq = { workspace = true }
+notify = "7"
 rsl-core = { path = "../rsl-core" }
 serde_json.workspace = true
 serde_yaml.workspace = true

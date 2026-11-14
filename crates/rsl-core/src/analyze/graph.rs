@@ -63,9 +63,10 @@ pub fn check_graph(
     let mut adj: Vec<Vec<usize>> = vec![vec![]; n];
     for (i, (_, to)) in steps.iter().enumerate() {
         if let Some(t) = to {
-            let j = steps.iter().position(|(x, _)| x == t).unwrap();
-            adj[i].push(j);
-            indegree[j] += 1;
+            if let Some(j) = steps.iter().position(|(x, _)| x == t) {
+                adj[i].push(j);
+                indegree[j] += 1;
+            }
         }
     }
     let mut q: VecDeque<usize> = (0..n).filter(|&i| indegree[i] == 0).collect();

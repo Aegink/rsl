@@ -12,9 +12,12 @@ path = "src/lib.rs"
 [features]
 default = ["engine-js", "net"]
 engine-js = ["dep:boa_engine"]
+engine-quickjs = ["dep:rquickjs"]
 net = ["dep:ureq"]
 
 [dependencies]
+jsonpath-rust = "1.0"
+rquickjs = { version = "0.9", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["preserve_order"] }
 regex = { workspace = true }
@@ -40,3 +43,12 @@ boa_engine = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3"
+
+[dev-dependencies]
+proptest = "1"
+criterion = "0.5"
+lol_html = "1"
+
+[[bench]]
+name = "engine_bench"
+harness = false

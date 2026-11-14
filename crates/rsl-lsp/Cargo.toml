@@ -1,0 +1,16 @@
+[package]
+name = "rsl-lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "RSL LSP server: diagnostics / hover / completion / definition (TASK-BOOK-2 B1)"
+
+[[bin]]
+name = "rsl-lsp"
+path = "src/main.rs"
+
+[dependencies]
+rsl-core = { path = "../rsl-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }

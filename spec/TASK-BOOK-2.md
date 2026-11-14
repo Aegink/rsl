@@ -1,7 +1,7 @@
 ---
 id: rsl-taskbook-2
 type: plan
-status: draft
+status: active
 title: RSL 内核增强任务书 v1.0（更稳定 · 更好用 · 更强大）
 parent: rsl-taskbook
 tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
@@ -341,9 +341,33 @@ python tools/conformance.py check      # golden 三方一致
 
 | 文档 | 版本 | 状态 |
 |---|---|---|
-| 本文 | 1.0 | Draft（评审后转 Active） |
+| 本文 | 1.0 | Active（2026-11-14 实施完成，见下表） |
 | 依赖：TASK-BOOK.md | v2.0 | ✅ 完结（基线） |
 | 依赖：RSL-1.0.md | 2.0.0-draft.1 | 不变 |
+
+### 7.4 实施完成记录（2026-11-14）
+
+| 任务 | 状态 | 证据 |
+|---|---|---|
+| A1 fuzz | ✅ | harness×5（`rsl fuzz`）；compile_str 60min/713 万轮零 panic；报告 `scratch/fuzz/report/`；V2-D6 裁决：进程内 fuzzer（libFuzzer 不支持 windows-gnu） |
+| A2 语料 | ✅ | `fuzz/corpus/` 1022 文件（485 合法 + 500 变异种子 + 16 负例 + 6 正例 + 15 边界），V2-D1 消毒 |
+| A3 proptest | ✅ | `tests/properties.rs` P1–P8（9 函数）全绿 |
+| A4 panic 审计 | ✅ | 36 处归零 + CLI catch_unwind + clippy unwrap_used 0 hits；清单 `docs/20261114_A4_panic审计清单.md` |
+| A5 协作式取消 | ✅ | CancelToken + 4 检查点 + partial/E_CANCELLED 传播；2 测试；附带修复 split:auto/block 真 bug |
+| B1 LSP | ✅ | `crates/rsl-lsp`（手写 stdio JSON-RPC，不引 tokio —— 超出 V2-D4 的保守解） |
+| B2 watch | ✅ | `rsl test --watch`（notify 500ms 防抖）；实测变更触发重跑 |
+| B3 import | ✅ | `rsl import`（本地/yuancang/通用 URL，并发+重试+聚合报告同构 batch_report） |
+| B4 冒烟 | ✅ | `tools/lsp_smoke.py` PASS 5/5（§5.3 场景 1–5）；VS Code GUI 截图为手工步骤（沙盒无 GUI） |
+| C1 QuickJS | ✅ | feature `engine-quickjs`；55/55 双引擎等价；H1 解答：rquickjs 0.9 预生成绑定 windows-gnu 可用 |
+| C2 JSONPath | ✅ | jsonpath-rust 1.0 兼容层（V2-D3）；`[?@.vip==false]` 可用；7 测试 |
+| C3 scraper | ✅ | 0.29 + ego-tree 0.11 对齐；CSS4 `:has()/:is()/:where()` 4 测试 |
+| C4 lol_html spike | ✅ | 报告 `docs/20261114_C4_lolhtml_spike.md`：可行但不集成（V2-D5） |
+| C5 基准 | ✅ | criterion 三负载；QuickJS/Boa = 2.00×/2.04×/3.44× ≥1.5 达标；报告 `docs/20261114_C5_engine_bench报告.md` |
+| #24 门禁扩展 | ✅ | `tools/check.py` 增 fuzz 报告/基准归档存在性检查 |
+
+新增代码 ≈ 4200 行（预算 ≈2950）。全量回归：双引擎 57+57、三门禁、3 套 YAML、LSP 5/5 全绿。
+顺带修复：windows-gnu 主线程栈过小（CLI/LSP 64MB 线程）、edge-cases 用例组 4/4、
+`scan_ctx_http` 的 backspace 污染正则、`paragraphs split:block/auto` 块级切分。
 
 ### 7.2 完成定义（会话收尾自检）
 

@@ -59,7 +59,7 @@ fn json_to_js(c: &mut Context, v: &Value) -> Result<JsValue, Diagnostic> {
             let s = serde_json::to_string(v).unwrap_or_default();
             c.eval(boa_engine::Source::from_bytes(&format!(
                 "JSON.parse({})",
-                serde_json::to_string(&s).unwrap()
+                serde_json::to_string(&s).unwrap_or_default()
             )))
             .map_err(|e| js_err("json", &e))
         }
@@ -134,11 +134,17 @@ impl ScriptEngine for BoaEngine {
         for a in args {
             argv.push(json_to_js(&mut c, a)?);
         }
-        let result = f
-            .as_callable()
-            .unwrap()
-            .call(&JsValue::undefined(), &argv, &mut c)
-            .map_err(|e| js_err(&format!("lib.pure.{fn_name}"), &e))?;
+        let result = match f.as_callable() {
+            Some(callable) => callable
+                .call(&JsValue::undefined(), &argv, &mut c)
+                .map_err(|e| js_err(&format!("lib.pure.{fn_name}"), &e))?,
+            None => {
+                let e = boa_engine::JsError::from_native(
+                    boa_engine::JsNativeError::typ().with_message(format!("{fn_name} 不可调用")),
+                );
+                return Err(js_err(&format!("lib.pure.{fn_name}"), &e));
+            }
+        };
         js_to_json(&mut c, result)
     }
 
@@ -186,11 +192,17 @@ impl ScriptEngine for BoaEngine {
         for a in args {
             argv.push(json_to_js(&mut c, a)?);
         }
-        let result = f
-            .as_callable()
-            .unwrap()
-            .call(&JsValue::undefined(), &argv, &mut c)
-            .map_err(|e| js_err(&format!("lib.ctx.{fn_name}"), &e))?;
+        let result = match f.as_callable() {
+            Some(callable) => callable
+                .call(&JsValue::undefined(), &argv, &mut c)
+                .map_err(|e| js_err(&format!("lib.ctx.{fn_name}"), &e))?,
+            None => {
+                let e = boa_engine::JsError::from_native(
+                    boa_engine::JsNativeError::typ().with_message(format!("{fn_name} 不可调用")),
+                );
+                return Err(js_err(&format!("lib.ctx.{fn_name}"), &e));
+            }
+        };
         // 桥里记录的错误优先抛出
         let bridge_err = BRIDGE_ERR.with(|b| b.borrow().first().cloned());
         BRIDGE_HOST.with(|b| *b.borrow_mut() = None);
@@ -217,13 +229,53 @@ thread_local! {
     static BRIDGE_ERR: std::cell::RefCell<Vec<Diagnostic>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
+/// host 未注入时的兜底宿主（A4：读空、写丢弃、IO 报错，永不 panic）。
+struct NoHost;
+
+static NO_HOST: NoHost = NoHost;
+
+impl CtxApi for NoHost {
+    fn var(&self, _name: &str) -> Option<Value> { None }
+    fn config(&self, _key: &str) -> Option<Value> { None }
+    fn http_get(&self, _url: &str, _headers: &[(String, String)]) -> Result<Value, Diagnostic> {
+        Err(Diagnostic::new(Code::EScript, "ctx", "ctx host 未注入", "检查执行环境"))
+    }
+    fn http_post(&self, _url: &str, _body: &str, _headers: &[(String, String)]) -> Result<Value, Diagnostic> {
+        Err(Diagnostic::new(Code::EScript, "ctx", "ctx host 未注入", "检查执行环境"))
+    }
+    fn cache_get(&self, _k: &str) -> Option<Value> { None }
+    fn cache_set(&self, _k: &str, _v: Value, _ttl: i64) {}
+    fn session_get(&self, _k: &str) -> Option<Value> { None }
+    fn session_set(&self, _k: &str, _v: Value) {}
+    fn cookie_get(&self, _k: &str) -> Option<String> { None }
+    fn cookie_set(&self, _k: &str, _v: &str) {}
+    fn cookie_remove(&self, _k: &str) {}
+    fn log(&self, _msg: &str) {}
+    fn crypto_digest(&self, _alg: &str, _data: &str) -> Result<String, Diagnostic> {
+        Err(Diagnostic::new(Code::EScript, "ctx", "ctx host 未注入", "检查执行环境"))
+    }
+    fn crypto_symmetric(&self, _alg: &str, _mode: &str, _key: &str, _iv: &str, _data: &str) -> Result<Value, Diagnostic> {
+        Err(Diagnostic::new(Code::EScript, "ctx", "ctx host 未注入", "检查执行环境"))
+    }
+    fn now(&self) -> Result<i64, Diagnostic> {
+        Err(Diagnostic::new(Code::EScript, "ctx", "ctx host 未注入", "检查执行环境"))
+    }
+    fn rand(&self) -> Result<f64, Diagnostic> {
+        Err(Diagnostic::new(Code::EScript, "ctx", "ctx host 未注入", "检查执行环境"))
+    }
+}
+
 /// ctx 接口桥：全局函数 → BRIDGE_HOST 调用。
 fn bind_ctx_globals(c: &mut Context) -> Result<(), Diagnostic> {
     fn with_host<T>(f: impl FnOnce(&dyn CtxApi) -> T) -> T {
         BRIDGE_HOST.with(|b| {
-            let h = b.borrow().expect("ctx host 未注入");
-            let h: &(dyn CtxApi + 'static) = unsafe { &*h };
-            f(h)
+            match b.borrow().as_ref() {
+                Some(h) => {
+                    let h: &(dyn CtxApi + 'static) = unsafe { &**h };
+                    f(h)
+                }
+                None => f(&NO_HOST),
+            }
         })
     }
 

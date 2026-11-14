@@ -234,3 +234,93 @@ fn content_chain_with_next_page() {
     assert_eq!(paras[0], "第一段正文。 缩进测试。");
     assert!(!serde_json::to_string(&paras).unwrap().contains("广告位"));
 }
+
+// ─────────────── A5 协作式取消（TASK-BOOK-2 §3.1 A5） ───────────────
+
+/// 包装 transport：第 N 次请求完成后置位取消（模拟宿主中途取消）。
+struct CancelAfterN {
+    inner: FixtureTransport,
+    token: rsl_core::ports::CancelToken,
+    n: usize,
+    hits: std::sync::atomic::AtomicUsize,
+}
+
+impl rsl_core::ports::Transport for CancelAfterN {
+    fn send(&self, req: &rsl_core::ports::HttpRequest) -> Result<rsl_core::ports::HttpResponse, rsl_core::error::Diagnostic> {
+        let r = self.inner.send(req)?;
+        if self.hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1 >= self.n {
+            self.token.cancel();
+        }
+        Ok(r)
+    }
+}
+
+#[test]
+fn a5_cancel_mid_nextpage_partial() {
+    let token = rsl_core::ports::CancelToken::new();
+    let transport = CancelAfterN {
+        inner: FixtureTransport {
+            responses: vec![
+                resp(CONTENT_HTML, "text/html; charset=utf-8"),
+                resp(CONTENT_P2_HTML, "text/html; charset=utf-8"),
+            ],
+            idx: std::sync::atomic::AtomicUsize::new(0),
+        },
+        token: token.clone(),
+        n: 1, // 第 1 页取完即取消 → nextPage 第 2 页不发
+        hits: std::sync::atomic::AtomicUsize::new(0),
+    };
+    let cookies = MemoryCookieStore::default();
+    let out = compile(SOURCE_JSON);
+    let src = out.source.expect("编译通过");
+    script::setup_engine(&src);
+    let mut cx = ExecCx::new(&src, &transport, &SystemClock);
+    cx.cookie_store = Some(&cookies);
+    cx.cancel_token = Some(token);
+    let mut chapter = std::collections::BTreeMap::new();
+    chapter.insert("url".to_string(), serde_json::json!("https://fixture.example.com/c/1"));
+    let mut reuse = ResponseReuse::default();
+    let r = run_stage(&src, "content", &mut cx, &RunInputs { chapter, ..Default::default() }, &mut reuse, &HostCaps::default());
+    // 部分结果：Ok(partial)
+    let stage = r.expect("取消应返回部分结果而非 Err");
+    assert!(stage.partial, "应标记 partial");
+    let paras = stage.out.get("content").and_then(|v| v.as_array()).expect("段落");
+    assert_eq!(paras.len(), 3, "只有第 1 页 3 段（未拼续页）: {paras:?}");
+    assert!(paras[0].as_str().unwrap_or_default().contains("第一段正文"));
+    // E_CANCELLED 诊断推送
+    let warns = cx.warnings.borrow();
+    assert!(
+        warns.iter().any(|d| d.code.as_str() == "E_CANCELLED"),
+        "应有 E_CANCELLED 诊断: {:?}",
+        warns.iter().map(|d| d.code.as_str()).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn a5_cancel_before_request_errors() {
+    let token = rsl_core::ports::CancelToken::new();
+    token.cancel(); // 请求前已取消
+    let transport = CancelAfterN {
+        inner: FixtureTransport {
+            responses: vec![resp(SEARCH_HTML, "text/html; charset=utf-8")],
+            idx: std::sync::atomic::AtomicUsize::new(0),
+        },
+        token: token.clone(),
+        n: usize::MAX,
+        hits: std::sync::atomic::AtomicUsize::new(0),
+    };
+    let cookies = MemoryCookieStore::default();
+    let out = compile(SOURCE_JSON);
+    let src = out.source.expect("编译通过");
+    script::setup_engine(&src);
+    let mut cx = ExecCx::new(&src, &transport, &SystemClock);
+    cx.cookie_store = Some(&cookies);
+    cx.cancel_token = Some(token);
+    let mut reuse = ResponseReuse::default();
+    let r = run_stage(&src, "search", &mut cx, &RunInputs { kw: Some("斗".into()), ..Default::default() }, &mut reuse, &HostCaps::default());
+    // 两种合法形态：Err(E_CANCELLED)（请求边界）或 Ok(partial 空列表)（页边界先行）
+    match r {
+        Err(d) => assert_eq!(d.code.as_str(), "E_CANCELLED"),
+        Ok(s) => assert!(s.partial, "页边界取消应标 partial"),
+    }
+}

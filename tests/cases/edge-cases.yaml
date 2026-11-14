@@ -14,7 +14,7 @@ cases:
     vars: { "book.url": "https://edge.example.com/b/1" }
     fixture: fixtures/edge_detail.html
     assert:
-      - "map.name" == "《书名甲》"
+      - 'name == 《书名甲》'
 
   - name: toc where not hidden
     stage: toc
@@ -23,7 +23,7 @@ cases:
     fixture: fixtures/edge_toc.html
     assert:
       - count("list") == 3
-      - "list[0].map.title" == "第一章 风起"
+      - 'list[0].map.title == 第一章 风起'
 
   - name: content 段落（auto + minLength 2）
     stage: content
@@ -31,4 +31,4 @@ cases:
     vars: { "chapter.url": "https://edge.example.com/c/1" }
     fixture: fixtures/edge_content.html
     assert:
-      - count("list") == 0
+      - count("content") == 3

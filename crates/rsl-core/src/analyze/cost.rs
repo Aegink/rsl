@@ -78,7 +78,7 @@ fn check_base(base: &BaseSel, raw: &str, path: &str, lib_pure: &[String], diags:
 
 fn check_selector(sel: &SelectorIR, path: &str, lib_pure: &[String], diags: &mut Vec<Diagnostic>) {
     check_base(&sel.base, &sel.raw, path, lib_pure, diags);
-    for w in &sel.where_ {
+    if let Some(w) = &sel.where_ {
         check_where(w, path, lib_pure, diags);
     }
     if let Some(WhereIR::Has(h)) = &sel.where_ {
