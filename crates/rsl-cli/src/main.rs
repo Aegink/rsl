@@ -687,6 +687,13 @@ fn rsl_core_convert_one(leg: &serde_json::Value) -> Result<(String, serde_json::
 
     // #6 searchUrl → request/paginate
     let search_url_raw = s("searchUrl");
+    if search_url_raw.starts_with("@js:") || search_url_raw.contains("<js>") {
+        changed.push(serde_json::json!({
+            "field": "searchUrl(@js:)",
+            "reason": "搜索请求由 JS 构造并签名（signParams/java.put），需人工重写为 let + expr:md5 + lib.ctx（§2 表 #6）",
+            "legado": search_url_raw.chars().take(160).collect::<String>(),
+        }));
+    }
     let (search_url, search_opts) = split_legado_url(&search_url_raw);
     let page_placeholder = search_url.contains("{{page}}");
     let search_url_clean = search_url
@@ -737,6 +744,15 @@ fn rsl_core_convert_one(leg: &serde_json::Value) -> Result<(String, serde_json::
             "field": "loginCheckJs", "to": "script.onResponse", "note": "它是响应改写器不是登录检查；500 重抛语义不可转（§5 #11）"
         }));
     }
+    // loginUrl 含 JS → 人工重建步骤图（§2 表 #13 / §5 #4 #12）
+    let login_url = s("loginUrl");
+    if login_url.starts_with("@js:") || login_url.contains("<js>") {
+        changed.push(serde_json::json!({
+            "field": "loginUrl(@js:)",
+            "reason": "登录流程由 JS 构造（java.put/get 副作用），需人工重建 login.steps[] 步骤图（§2 表 #13）",
+            "legado": login_url.chars().take(120).collect::<String>(),
+        }));
+    }
     let js_lib = s("jsLib");
     if js_lib.starts_with("http") || js_lib.contains("@js:") {
         dropped.push(serde_json::json!({
@@ -748,7 +764,13 @@ fn rsl_core_convert_one(leg: &serde_json::Value) -> Result<(String, serde_json::
     // exploreUrl → groups（§2 #7：title::url 串）
     let explore_url = s("exploreUrl");
     let mut groups = vec![];
-    if !explore_url.is_empty() && !explore_url.starts_with('@') && !explore_url.contains("<js>") {
+    if explore_url.starts_with("@js:") || explore_url.contains("<js>") {
+        changed.push(serde_json::json!({
+            "field": "exploreUrl(@js:)",
+            "reason": "发现分类由 JS 动态构造（68KB 级），需人工重写为 groupsFrom 或静态 groups[]（§2 表 #7）",
+            "size_bytes": explore_url.len(),
+        }));
+    } else if !explore_url.is_empty() {
         for seg in explore_url.split(&['\n', '&'][..]) {
             let seg = seg.trim().trim_end_matches("&&").trim();
             if seg.is_empty() {
@@ -941,30 +963,68 @@ fn parse_concurrent_rate(s: &str) -> serde_json::Value {
     serde_json::Value::Null
 }
 
-/// Legado 规则字符串 → RSL 选择器（MIGRATION §3 语法翻译，尽力而为）。
-fn legado_rule_to_rsl(rule: &str) -> String {
+/// Legado 规则字符串 → RSL 选择器（MIGRATION §3 语法翻译）。
+/// Err(reason) = 不可转（@js:/<js>/data: 伪协议/函数包裹），须进 migration 报告。
+fn legado_rule_to_rsl(rule: &str) -> Result<String, String> {
     let r = rule.trim();
-    // @CSS:/@XPath:/@Json: 前缀
+    // ① JS 规则：一律不可转（§5 #1/#8；source.getVariable/java.put 等）
+    if r.starts_with("@js:") || r.contains("<js>") || r.contains("{{$.") || r.contains("{{$.") {
+        return Err("规则含 @js:/<js>/模板插值，绑定 java.*/source.getVariable，需人工重写（§5 #8）".into());
+    }
+    // ② data: 伪协议（§16 明确不采纳 / §5 #7）
+    if r.starts_with("data:") || r.contains("'data:;base64,'") {
+        return Err("data: 伪协议不可转（§16）：改用 out 契约字段承载参数（toc.out.map 额外键 → var:chapter.*）".into());
+    }
+    // ③ 显式前缀
     for (pre, ns) in [("@CSS:", "css:"), ("@css:", "css:"), ("@XPath:", "xpath:"), ("@Json:", "json:")] {
         if let Some(rest) = r.strip_prefix(pre) {
-            return format!("{ns}{rest}");
+            return Ok(format!("{ns}{rest}"));
         }
     }
-    // ## 正则段剥离（取第一段作为选择器，正则进报告）
+    // ④ ## 正则段剥离（取第一段作为选择器）
     let main = r.split("##").next().unwrap_or(r);
     let main = main.trim();
-    // a@text → css:a（text 提取默认）；a@href → {"$":"css:a","attr":"href"}（简化为 css:a + attr 提示）
+    // ⑤ a@text → css:a
     if let Some((sel, _attr)) = main.rsplit_once('@') {
-        if !sel.is_empty() {
-            return format!("css:{sel}");
+        if !sel.is_empty() && !sel.contains(' ') && !sel.contains('$') {
+            return Ok(format!("css:{sel}"));
         }
     }
     if main.starts_with('/') || main.starts_with("//") {
-        format!("xpath:{main}")
-    } else if main.starts_with("$.") || main.starts_with("$[") {
-        format!("json:{main}")
-    } else {
-        format!("css:{main}")
+        return Ok(format!("xpath:{main}"));
+    }
+    if main.starts_with("$.") || main.starts_with("$[") {
+        return Ok(format!("json:{main}"));
+    }
+    // ⑥ 裸 JSON 点路径（data.books → json:$.data.books；Legado isJSON 语境常见）
+    if !main.contains('/') && !main.contains('@') && main.contains('.')
+        && main.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '[' || c == ']')
+        && main.split('.').all(|p| !p.is_empty())
+    {
+        return Ok(format!("json:$.{main}"));
+    }
+    Ok(format!("css:{main}"))
+}
+
+/// 把规则字段写入 out；@js:/data: 规则自动进 changed 报告。
+fn put_rule(
+    out: &mut serde_json::Value,
+    key: &str,
+    rule: &str,
+    field: &str,
+    changed: &mut Vec<serde_json::Value>,
+) {
+    match legado_rule_to_rsl(rule) {
+        Ok(r) => {
+            out[key] = Value::String(r);
+        }
+        Err(reason) => {
+            changed.push(serde_json::json!({
+                "field": field,
+                "reason": reason,
+                "legado": rule.chars().take(120).collect::<String>(),
+            }));
+        }
     }
 }
 
@@ -972,7 +1032,7 @@ fn build_search_out(rule: &serde_json::Value, changed: &mut Vec<serde_json::Valu
     let mut out = serde_json::json!({ "emptyOk": true });
     let list = rule["bookList"].as_str().unwrap_or("");
     if !list.is_empty() {
-        out["list"] = Value::String(legado_rule_to_rsl(list));
+        put_rule(&mut out, "list", list, "bookList", changed);
     }
     let mut map = serde_json::json!({});
     let fields = [
@@ -988,14 +1048,10 @@ fn build_search_out(rule: &serde_json::Value, changed: &mut Vec<serde_json::Valu
     for (leg_key, rsl_key) in fields {
         if let Some(v) = rule[leg_key].as_str() {
             if !v.is_empty() {
-                let r = legado_rule_to_rsl(v);
-                if r.starts_with("css:") || r.starts_with("json:") || r.starts_with("xpath:") {
-                    map[rsl_key] = Value::String(r);
-                } else {
-                    // @js: 等 → 不可转报告
-                    changed.push(serde_json::json!({
-                        "field": format!("ruleSearch.{leg_key}"), "reason": "规则含 @js:/java.*，需人工重写", "legado": v
-                    }));
+                let mut tmp = serde_json::json!({});
+                put_rule(&mut tmp, rsl_key, v, &format!("ruleSearch.{leg_key}"), changed);
+                if let Some(x) = tmp.get(rsl_key) {
+                    map[rsl_key] = x.clone();
                 }
             }
         }
@@ -1026,15 +1082,15 @@ fn build_detail_out(rule: &serde_json::Value, changed: &mut Vec<serde_json::Valu
     for (leg_key, rsl_key) in fields {
         if let Some(v) = rule[leg_key].as_str() {
             if !v.is_empty() {
-                out[rsl_key] = Value::String(legado_rule_to_rsl(v));
+                put_rule(&mut out, rsl_key, v, &format!("ruleBookInfo.{leg_key}"), changed);
             }
         }
     }
     if let Some(cr) = rule["canReName"].as_str() {
-        let _ = cr;
-        out["canRename"] = Value::String(legado_rule_to_rsl(cr));
+        if !cr.is_empty() {
+            put_rule(&mut out, "canRename", cr, "ruleBookInfo.canReName", changed);
+        }
     }
-    let _ = changed;
     out
 }
 
@@ -1042,25 +1098,37 @@ fn build_toc_out(rule: &serde_json::Value, changed: &mut Vec<serde_json::Value>)
     let mut out = serde_json::json!({});
     let list = rule["chapterList"].as_str().unwrap_or("");
     if !list.is_empty() {
-        out["list"] = Value::String(legado_rule_to_rsl(list));
+        // <js>…</js> 包裹：剥离 JS 前缀并报告，取剩余路径
+        let mut effective = list.to_string();
+        if let Some(end) = list.find("</js>") {
+            let js_part = &list[..end + 5];
+            effective = list[end + 5..].trim().to_string();
+            changed.push(serde_json::json!({
+                "field": "ruleToc.chapterList(<js>)",
+                "reason": "目录列表 JS 前缀（java.put 副作用）不可转；副作用需人工搬到 lib.ctx",
+                "legado": js_part.chars().take(120).collect::<String>(),
+            }));
+        }
+        if !effective.is_empty() {
+            put_rule(&mut out, "list", &effective, "ruleToc.chapterList", changed);
+        }
     }
     let mut map = serde_json::json!({});
     for (leg_key, rsl_key) in [("chapterName", "title"), ("chapterUrl", "url")] {
         if let Some(v) = rule[leg_key].as_str() {
             if !v.is_empty() {
-                map[rsl_key] = Value::String(legado_rule_to_rsl(v));
+                put_rule(&mut map, rsl_key, v, &format!("ruleToc.{leg_key}"), changed);
             }
         }
     }
     for k in ["isVolume", "isVip", "isPay", "updateTime", "wordCount"] {
         if let Some(v) = rule[k].as_str() {
             if !v.is_empty() {
-                map[k] = Value::String(legado_rule_to_rsl(v));
+                put_rule(&mut map, k, v, &format!("ruleToc.{k}"), changed);
             }
         }
     }
-    // formatJs → 不可转（§5 #13）
-    if rule["formatJson"].is_object() || rule["formatJs"].is_string() {
+    if rule["formatJs"].is_object() || rule["formatJs"].is_string() {
         changed.push(serde_json::json!({
             "field": "ruleToc.formatJs", "reason": "逐章 JS 与 E_COST 冲突（§5 #13），需人工重写为 lib.pure"
         }));
@@ -1073,21 +1141,31 @@ fn build_content_out(rule: &serde_json::Value, changed: &mut Vec<serde_json::Val
     let mut out = serde_json::json!({});
     if let Some(t) = rule["title"].as_str() {
         if !t.is_empty() {
-            out["title"] = Value::String(legado_rule_to_rsl(t));
+            put_rule(&mut out, "title", t, "ruleContent.title", changed);
         }
     }
     let content = rule["content"].as_str().unwrap_or("");
     if !content.is_empty() {
-        out["content"] = Value::String(legado_rule_to_rsl(content));
+        put_rule(&mut out, "content", content, "ruleContent.content", changed);
     }
     if let Some(np) = rule["nextContentUrl"].as_str() {
         if !np.is_empty() {
-            out["nextPage"] = Value::String(legado_rule_to_rsl(np));
+            put_rule(&mut out, "nextPage", np, "ruleContent.nextContentUrl", changed);
         }
     }
     if let Some(pa) = rule["payAction"].as_str() {
         if !pa.is_empty() {
             out["payAction"] = Value::String(pa.to_string());
+        }
+    }
+    // callBackJs（自定义按钮/宿主事件）→ 不可转报告
+    if let Some(cb) = rule["callBackJs"].as_str() {
+        if !cb.is_empty() {
+            changed.push(serde_json::json!({
+                "field": "ruleContent.callBackJs",
+                "reason": "宿主按钮/事件 JS 不可转；改 hostStages 或宿主按钮（§5 #1）",
+                "legado": cb.chars().take(80).collect::<String>(),
+            }));
         }
     }
     // replaceRegex → transform.replace

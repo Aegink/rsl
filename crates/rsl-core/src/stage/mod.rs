@@ -1008,8 +1008,8 @@ fn fetch_stage_root(
     });
     let _ = inputs;
     let (root, doc, _resp) = fetch_with_request(src, stage, cx, &req, reuse, caps, stage_name)?;
-    let _ = root;
-    Ok((Val::Empty, doc))
+    // JSON/Text 响应的根必须是解析值（对象型阶段的 json: 选择器以它为作用域）；HTML 根为 Empty
+    Ok((root, doc))
 }
 
 /// 发请求 + onResponse + parse + auto 升级；返回 (root_val, doc, resp)。
@@ -1092,6 +1092,21 @@ fn fetch_with_request(
             resp.body = out.as_str().unwrap_or_default().as_bytes().to_vec();
         }
     }
+    // 内置变量注入（S§5.3：var:url / var:response / var:charset 全部阶段可用）
+    cx.vars
+        .insert("url".into(), Value::String(resp.final_url.clone()));
+    cx.vars.insert(
+        "response".into(),
+        Value::String(String::from_utf8_lossy(&resp.body).to_string()),
+    );
+    cx.vars.insert(
+        "charset".into(),
+        Value::String(
+            resp.header("content-type")
+                .unwrap_or("utf-8")
+                .to_string(),
+        ),
+    );
     let doc = decode_to_doc(cx, req, &resp, &format!("stages.{stage_name}"))?;
     // parse（预处理响应根，T3.5 / S§6.1.2）
     let (root, doc2) = match *doc {

@@ -17,3 +17,8 @@ Thumbs.db
 fixtures/*.fixture.json
 _tests_out/
 _tmp_*
+
+# 真实书源与转换产物（S§17：仓库不包含任何书源）
+scratch/qimao.json
+converted/qimao/
+

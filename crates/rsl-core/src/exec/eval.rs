@@ -150,8 +150,8 @@ impl<'a, 'c> Eval<'a, 'c> {
                 val = self.extract_text_default(val)?;
             }
         }
-        // protect + transform
-        if !sel.transform.is_empty() {
+        // protect + transform：命中 0 时空值直通（可选字段整条跳过；必填字段末尾 E_NO_MATCH）
+        if !sel.transform.is_empty() && !val.is_empty_val() {
             val = self.run_transform(val, &sel.transform, Some(sel))?;
         }
         // typeMap
@@ -491,6 +491,13 @@ impl<'a, 'c> Eval<'a, 'c> {
                     .collect::<Vec<_>>()
                     .join(" "),
                 Val::Str(s) => s.clone(),
+                // JSON 字符串值（响应为 json 时 json:$.x 取到的就是字符串）
+                Val::Json(serde_json::Value::String(sv)) => sv.clone(),
+                Val::Json(serde_json::Value::Array(a)) => a
+                    .iter()
+                    .filter_map(|x| x.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n"),
                 _ => String::new(),
             };
             split_paragraphs(&text, &split, vec![])
