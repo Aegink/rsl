@@ -153,12 +153,13 @@ class FormPanel {
     });
   }
 
-  /** LSP 诊断 → 表单顶栏（校验统一走语言服务）。 */
+  /** LSP 诊断 → 表单顶栏（校验统一走语言服务）。键名 diags 与 init 一致（E2 双向定位）。
+   *  诊断缓存无条件记录——面板未开时也要记，否则 F6 后拿不到（V3 期隐性 bug）。 */
   onDiagnostics(uri, diagnostics) {
-    if (!this.panel) return;
     this._lastDiags = { uri: uri.toString(), list: diagnostics };
+    if (!this.panel) return;
     if (this.uri && uri.toString() === this.uri.toString()) {
-      this.panel.webview.postMessage({ type: 'diags', diagnostics });
+      this.panel.webview.postMessage({ type: 'diags', diags: diagnostics });
     }
   }
 
@@ -185,7 +186,7 @@ class FormPanel {
 <div id="toolbar">
   <button id="btnApply">应用到文档</button>
   <button id="btnGenerate" class="secondary">生成源文件</button>
-  <span class="muted">未建模内容（x- 字段、media、explore 等）在应用时原样保留。</span>
+  <span class="muted">未建模内容（x- 字段、media、login 细节等）在应用时原样保留。</span>
 </div>
 <script nonce="${nonce}" src="${jsModel}"></script>
 <script nonce="${nonce}" src="${jsUi}"></script>

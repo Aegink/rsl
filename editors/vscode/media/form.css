@@ -11,12 +11,22 @@ h1 { font-size: 15px; margin: 0 0 4px; }
   background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-widget-border, transparent); }
 .banner.mode-skel { border-color: var(--vscode-editorWarning-foreground); }
 
-/* 诊断条 */
+/* 诊断条（E2：诊断可点击跳字段） */
 #diags { margin: 8px 0 12px; }
-#diags .d { padding: 4px 8px; margin-bottom: 4px; border-radius: 3px; font-size: 12px;
-  border-left: 3px solid var(--vscode-errorForeground); }
+#diags .d { display: block; width: 100%; text-align: left; padding: 4px 8px; margin-bottom: 2px;
+  border-radius: 3px; font-size: 12px; cursor: pointer;
+  background: var(--vscode-editorWidget-background); color: inherit;
+  border: none; border-left: 3px solid var(--vscode-errorForeground); }
 #diags .d.warn { border-left-color: var(--vscode-editorWarning-foreground); }
+#diags .d:hover { filter: brightness(1.15); }
+#diags .d-hint { font-size: 11px; opacity: .75; margin: 0 0 6px 11px; }
 #diags .ok { color: var(--vscode-testing-iconPassed, #73c991); padding: 2px 0; }
+
+/* 诊断 ↔ 字段双向定位（E2） */
+label.has-diag { color: var(--vscode-errorForeground); font-weight: 600; }
+.diag-badge { color: var(--vscode-errorForeground); }
+.diag-flash { outline: 2px solid var(--vscode-focusBorder, #4d9fff); border-radius: 3px;
+  transition: outline-color .3s; }
 
 /* 工具条 */
 #toolbar { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 16px;

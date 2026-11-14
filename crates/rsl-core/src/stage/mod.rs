@@ -947,7 +947,16 @@ fn paginate_loop(
                 let mut e = make_eval(cx, stage_name, root.clone(), doc_ref);
                 let mut found = None;
                 for s in sels {
-                    let r = e.eval_selector(s)?;
+                    let r = match e.eval_selector(s) {
+                        Ok(r) => r,
+                        // 最后一页没有"下一页"链接是常态：选择器未命中=优雅停止（与空文本同义），
+                        // 不作为阶段失败传播。其余诊断照常上抛。
+                        Err(d) if d.code == Code::ENoMatch => {
+                            found = None;
+                            break;
+                        }
+                        Err(d) => return Err(d),
+                    };
                     let t = r.to_text();
                     if !t.trim().is_empty() {
                         found = Some(t);

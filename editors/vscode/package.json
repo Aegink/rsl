@@ -22,6 +22,7 @@
     "onLanguage:rsl",
     "onLanguage:json",
     "onCommand:rsl.formEditor",
+    "onCommand:rsl.debug",
     "onStartupFinished"
   ],
   "main": "./extension.js",
@@ -57,10 +58,17 @@
         "title": "RSL: 打开表单编辑器",
         "category": "RSL",
         "icon": "$(json)"
+      },
+      {
+        "command": "rsl.debug",
+        "title": "RSL: 调试源（serve + 调试器）",
+        "category": "RSL",
+        "icon": "$(zap)"
       }
     ],
     "keybindings": [
-      { "command": "rsl.formEditor", "key": "f6", "when": "editorTextFocus || !editorTextFocus" }
+      { "command": "rsl.formEditor", "key": "f6", "when": "editorTextFocus || !editorTextFocus" },
+      { "command": "rsl.debug", "key": "f7", "when": "editorTextFocus || !editorTextFocus" }
     ],
     "menus": {
       "editor/title": [
@@ -68,6 +76,11 @@
           "command": "rsl.formEditor",
           "when": "resourceFilename =~ /\\.rsl\\.json$/",
           "group": "navigation@9"
+        },
+        {
+          "command": "rsl.debug",
+          "when": "resourceFilename =~ /\\.rsl\\.json$/",
+          "group": "navigation@8"
         }
       ]
     },
@@ -78,13 +91,23 @@
           "type": "string",
           "default": "rsl-lsp",
           "description": "rsl-lsp 可执行文件路径（默认取 PATH；也可指向 target/debug/rsl-lsp.exe）"
+        },
+        "rsl.servePath": {
+          "type": "string",
+          "default": "rsl",
+          "description": "rsl CLI 可执行文件路径（调试器 spawn rsl serve 用；默认取工作区 target/debug 回退 PATH）"
+        },
+        "rsl.webDebugRoot": {
+          "type": "string",
+          "default": "",
+          "description": "web 调试前端目录（editors/web-debug）；留空用扩展内置"
         }
       }
     }
   },
   "scripts": {
     "sync-schema": "node -e \"require('fs').copyFileSync('../../schema/rsl.schema.json','schema/rsl.schema.json')\"",
-    "test": "node test/protocol-smoke.js && node test/form-model-test.js"
+    "test": "node test/protocol-smoke.js && node test/form-model-test.js && node test/serve-integration-test.js"
   },
   "devDependencies": {}
 }

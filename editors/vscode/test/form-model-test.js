@@ -198,6 +198,85 @@ t('M2: x-jslib 等根级未建模块不受影响', () => {
   eq(out['x-jslib'], [{ url: 'file://libs/lib.js' }]);
 });
 
+// ── E1 explore 编辑露出 ──
+const EXPLORE_DOC = {
+  rsl: '2.0', id: 'e.example.com', name: '发现站', type: 'novel',
+  baseUrl: 'https://e.example.com',
+  requires: { features: [], crypto: [] },
+  stages: {
+    explore: {
+      filters: [
+        { key: 'order', label: '排序', default: 'hot', persist: true,
+          options: [{ value: 'hot', label: '最热' }, { value: 'new', label: '最新' }] },
+        { key: 'len', label: '字数', default: 1, options: ['all', '100'] },
+      ],
+      groups: [
+        { title: '玄幻', params: { cat: 'xuanhuan' } },
+        { title: '排行榜', url: 'https://e.example.com/rank', groups: [
+          { title: '月票榜', params: { cat: 'rank', by: 'vote' } },
+        ] },
+      ],
+      request: { url: 'https://e.example.com/list', params: { cat: 'var:group.params.cat' } },
+      out: {
+        list: 'css:.list .item',
+        map: {
+          name: { $: 'css:h3', transform: [{ trim: true }] },
+          url: { $: 'css:a', attr: 'href', transform: [{ absolute: true }] },
+        },
+      },
+    },
+  },
+};
+
+t('E1: explore extract → apply 幂等（未动表单逐键一致，extras 保真）', () => {
+  const st = M.extractFormState(EXPLORE_DOC);
+  eq(M.applyFormState(EXPLORE_DOC, st), EXPLORE_DOC, 'explore 往返必须逐键一致（含 group.url / filter.persist）');
+});
+t('E1: filters 未建模键保真 + default 类型保真', () => {
+  const doc = JSON.parse(JSON.stringify(EXPLORE_DOC));
+  doc.stages.explore.filters[0].style = 'chip'; // 未建模键
+  const st = M.extractFormState(doc);
+  const out = M.applyFormState(doc, st);
+  eq(out.stages.explore.filters[0].style, 'chip');
+  eq(out.stages.explore.filters[1].default, 1, '数字 default 不应变字符串');
+});
+t('E1: filters 改选项文本 → 重建 options', () => {
+  const st = M.extractFormState(EXPLORE_DOC);
+  st['stages.explore.filters'].value[0].optionsText = 'hot|最热\nvote|月票';
+  const out = M.applyFormState(EXPLORE_DOC, st);
+  eq(out.stages.explore.filters[0].options, [{ value: 'hot', label: '最热' }, { value: 'vote', label: '月票' }]);
+});
+t('E1: groups 文本编辑 → 二级树重建 + extras 按路径并回', () => {
+  const st = M.extractFormState(EXPLORE_DOC);
+  // 模拟 UI（groupsWidget）：文本变更置 roundTrip=false（未编辑信号消失）
+  st['stages.explore.groups'].value = {
+    text: '玄幻 | cat=xuanhuan\n排行榜/月票榜 | cat=rank, by=vote\n排行榜/收藏榜 | cat=rank, by=fav',
+    raw: st['stages.explore.groups'].value.raw,
+    roundTrip: false,
+  };
+  const out = M.applyFormState(EXPLORE_DOC, st);
+  const g = out.stages.explore.groups;
+  eq(g.length, 2);
+  eq(g[1].url, 'https://e.example.com/rank', '父节点未建模键 url 并回');
+  eq(g[1].groups.length, 2);
+  eq(g[1].groups[1], { title: '收藏榜', params: { cat: 'rank', by: 'fav' } });
+});
+t('E1: explore out.map 改选择器写回 + params 保留', () => {
+  const st = M.extractFormState(EXPLORE_DOC);
+  st['stages.explore.out.map.name'] = {
+    value: { selector: { ns: 'css', expr: 'h3.name' }, optional: false, default: null, transform: [] },
+    present: true,
+  };
+  const out = M.applyFormState(EXPLORE_DOC, st);
+  eq(out.stages.explore.out.map.name, 'css:h3.name');
+  eq(out.stages.explore.request.params, { cat: 'var:group.params.cat' });
+});
+t('E1: explore 全路径有文案（ZH 门禁自动覆盖）', () => {
+  for (const m of M.modeledPaths().filter((p) => p.path.startsWith('stages.explore.'))) {
+    if (!m.zh || !m.help) throw new Error(`${m.path} 缺 zh/help`);
+  }
+});
+
 // ── M1 骨架 ──
 t('M1: skeleton 必备键齐全 + 往返幂等', () => {
   const sk = M.skeleton();

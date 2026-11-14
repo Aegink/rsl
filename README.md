@@ -115,8 +115,12 @@ cargo build -p rsl-lsp && rsl-lsp   # stdio LSP server
 ```
 
 现成 VS Code 扩展：[`editors/vscode/`](editors/vscode/)（诊断/hover/补全/定义/快速修复 +
-snippets + Schema 校验，`npm test` 6 场景协议冒烟）。调试数据面：`rsl run --trace-json`
-（`schema/trace.schema.json`，版本 rsl-trace/1）。
+snippets + Schema 校验 + 表单编辑器 F6 + 调试器 F7，`npm test` 协议/表单/serve 集成三套测试）。
+调试数据面：`rsl run --trace-json`（`schema/trace.schema.json`，rsl-trace/1）与
+`rsl run --debug-json` / `rsl serve`（`schema/rsl-debug.schema.json`，rsl-debug/1——
+四数据面：请求/响应/解析/诊断）。web 调试前端：[`editors/web-debug/`](editors/web-debug/)
+（五阶段页 × 四 tab：原始数据/解析结果/协议标头/可视界面；链式五跳 + 发现独立入口 +
+免保存实时；执行唯一在 Rust 内核）。
 
 ---
 
@@ -191,11 +195,11 @@ JS 引擎经 `ScriptEngine` 端口注入：native 默认 QuickJS（基准 QuickJ
 | 9 | [`spec/EXPRESSIONS.md`](spec/EXPRESSIONS.md) | 实现者——`expr:` 子语言文法与内置函数 |
 | 10 | [`spec/GAP-AUDIT.md`](spec/GAP-AUDIT.md) | 改规范前——与现网引擎差距矩阵（A1–A44）与取舍 |
 | 11 | [`spec/KERNEL-COMPARE.md`](spec/KERNEL-COMPARE.md) | 关心架构——与阅读内核逐层对比（源码行号证据） |
-| 12 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) / [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) / [`spec/TASK-BOOK-3.md`](spec/TASK-BOOK-3.md) / [`spec/TASK-BOOK-4.md`](spec/TASK-BOOK-4.md) | 派工史——V1 基线（M1–M6）、V2 增强（A/B/C 三方向）、V3 增补（登录会话/机械重登/编辑器/受控远程/修复建议）、V4 编辑+调试（五页面调试器/rsl serve/三宿主/explore 编辑露出，Draft） |
+| 12 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) / [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) / [`spec/TASK-BOOK-3.md`](spec/TASK-BOOK-3.md) / [`spec/TASK-BOOK-4.md`](spec/TASK-BOOK-4.md) | 派工史——V1 基线（M1–M6）、V2 增强（A/B/C 三方向）、V3 增补（登录会话/机械重登/编辑器/受控远程/修复建议）、V4 编辑+调试（五页面调试器/rsl serve/三宿主/explore 编辑露出，✅ P1 完成） |
 | 13 | [`spec/ROADMAP.md`](spec/ROADMAP.md) | 路线——里程碑与验收口径 |
 | 14 | [`spec/INDUSTRY-RESEARCH.md`](spec/INDUSTRY-RESEARCH.md) | 追溯依据——业界调研原始记录（非规范） |
-| 15 | [`schema/rsl.schema.json`](schema/rsl.schema.json) | 编辑器 / CI——JSON Schema 2020-12（29 `$defs`） |
-| 16 | [`examples/`](examples/) | 五个可校验示例（小说/漫画/登录视频/聚合合并/边界能力） |
+| 15 | [`schema/rsl.schema.json`](schema/rsl.schema.json) / [`schema/rsl-debug.schema.json`](schema/rsl-debug.schema.json) / [`schema/trace.schema.json`](schema/trace.schema.json) | 编辑器 / CI——语言 Schema（32 `$defs`）+ 调试产物 rsl-debug/1 + trace rsl-trace/1 |
+| 16 | [`examples/`](examples/) | 五个可校验示例（小说/漫画/登录视频/聚合合并/边界能力）+ `debug/` 调试样例产物 + `fixtures/` 合规夹具 |
 | 17 | [`docs/`](docs/) | 工程记录——审计清单、spike 报告、基准报告、交接文档 |
 
 文档分工互斥：想学 → `CONCEPTS`；想写 → `PATTERNS`；想查 → `REFERENCE`；报错 → `ERRORS`；

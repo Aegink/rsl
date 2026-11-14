@@ -1172,7 +1172,8 @@ fn build_stage(cx: &mut Cx, name: &str, cfg: &model::StageCfg, path: &str) -> Op
 
     // paginate
     if let Some(pg) = &cfg.paginate {
-        stage_ir.paginate = Some(build_paginate(cx, pg, path, &scope)?);
+        // path 用子路径：paginate 内未知字段的告警要挂在 .paginate 下，不能错挂阶段层
+        stage_ir.paginate = Some(build_paginate(cx, pg, &format!("{path}.paginate"), &scope)?);
     }
 
     // script 钩子

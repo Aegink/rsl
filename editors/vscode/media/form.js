@@ -36,13 +36,31 @@
     return path.replace(/[^A-Za-z0-9]/g, '_');
   }
 
-  // ───────── 字段标签（中文 + 核心徽标） ─────────
+  // ───────── 字段标签（中文 + 核心徽标 + 诊断警示，E2 双向定位） ─────────
+  /** 诊断的 JSON path：内核诊断在 d.path；LSP 通道在 d.data.path（diag_json 下发）。 */
+  function diagPath(d) {
+    return d.path ?? (d.data && d.data.path) ?? null;
+  }
+
   function fieldLabel(m) {
-    const lbl = el('label', { class: 'lbl', text: m.zh });
+    const bad = curDiags.some((d) => {
+      const p = diagPath(d);
+      return p && (p === m.path || p.startsWith(m.path + '.'));
+    });
+    const lbl = el('label', { class: 'lbl' + (bad ? ' has-diag' : ''), text: m.zh });
     if (m.requiredField) {
       lbl.appendChild(el('span', { class: 'badge', text: '核心' }));
     }
-    lbl.title = m.path;
+    if (bad) {
+      lbl.appendChild(el('span', { class: 'badge diag-badge', text: '⚠' }));
+      lbl.title = m.path + ' ← ' + curDiags.filter((d) => {
+        const p = diagPath(d);
+        return p && (p === m.path || p.startsWith(m.path + '.'));
+      }).map((d) => d.code + ' ' + d.message).join('; ');
+    } else {
+      lbl.title = m.path;
+    }
+    lbl.dataset.field = m.path;
     return lbl;
   }
 
@@ -203,6 +221,59 @@
     return el('div', {}, holder, el('div', { class: 'row' }, add));
   }
 
+  // ───────── explore 筛选声明（E1 控件化，V4-D9） ─────────
+  function filtersWidget(path) {
+    const holder = el('div', {});
+    const render = () => {
+      holder.textContent = '';
+      (state[path].value || []).forEach((f, i) => {
+        const key = el('input', { type: 'text', placeholder: '键（如 order）' });
+        key.value = f.key;
+        key.addEventListener('input', () => { state[path].value[i].key = key.value; });
+        const lab = el('input', { type: 'text', placeholder: '显示名（如 排序）' });
+        lab.value = f.label;
+        lab.addEventListener('input', () => { state[path].value[i].label = lab.value; });
+        const def = el('input', { type: 'text', placeholder: '默认值' });
+        def.value = f.defaultText;
+        def.addEventListener('input', () => { state[path].value[i].defaultText = def.value; });
+        const opts = el('textarea', { class: 'code', placeholder: '每行一个选项：值|显示名（如 hot|最热）' });
+        opts.value = f.optionsText;
+        opts.addEventListener('input', () => { state[path].value[i].optionsText = opts.value; });
+        trackFocus(key, `${path}#${i}k`);
+        trackFocus(lab, `${path}#${i}l`);
+        trackFocus(def, `${path}#${i}d`);
+        trackFocus(opts, `${path}#${i}o`);
+        const del = el('button', { class: 'icon-btn', text: '×',
+          onclick: () => { state[path].value.splice(i, 1); render(); } });
+        holder.appendChild(el('div', { class: 'kv-row' }, key, lab, def, del));
+        holder.appendChild(el('div', { class: 'kv-row' }, opts));
+      });
+    };
+    render();
+    holder._render = render;
+    const add = el('button', { class: 'icon-btn', text: '+ 筛选器',
+      onclick: () => {
+        state[path].value.push({ key: '', label: '', defaultRaw: undefined, defaultText: '',
+          persist: false, optionsText: '', rawExtras: {}, rawOptions: null });
+        holder._render();
+      } });
+    return el('div', {}, holder, el('div', { class: 'row' }, add));
+  }
+
+  // ───────── explore 分组树（E1：一行一个分组；二级 父/子；参数 | k=v） ─────────
+  function groupsWidget(path) {
+    const ta = el('textarea', { class: 'code', rows: '6',
+      placeholder: '玄幻 | cat=xuanhuan\n都市 | cat=dushi\n排行榜/月票榜 | cat=rank, by=vote' });
+    const v = state[path].value;
+    ta.value = v && v.text ? v.text : '';
+    ta.addEventListener('input', () => {
+      state[path].value = { text: ta.value, raw: v && v.raw ? v.raw : null, roundTrip: false };
+      state[path].present = true;
+    });
+    trackFocus(ta, path);
+    return ta;
+  }
+
   // ───────── 登录字段列表 ─────────
   function loginFieldsWidget(path) {
     const holder = el('div', {});
@@ -314,6 +385,7 @@
   function sectionIdOf(path) {
     if (['id', 'name', 'type', 'baseUrl'].some((p) => path === p)) return 'sec-meta';
     if (path.startsWith('stages.search.')) return 'sec-search';
+    if (path.startsWith('stages.explore.')) return 'sec-explore';
     if (path.startsWith('stages.detail.')) return 'sec-detail';
     if (path.startsWith('stages.toc.')) return 'sec-toc';
     if (path.startsWith('stages.content.')) return 'sec-content';
@@ -372,8 +444,8 @@
       }
       for (const m of items) {
         const isRule = m.kind === 'rule';
-        const isKv = m.kind === 'kv' || m.kind === 'kvLoginFields';
-        const isCode = m.kind === 'code';
+        const isKv = m.kind === 'kv' || m.kind === 'kvLoginFields' || m.kind === 'exploreFilters';
+        const isCode = m.kind === 'code' || m.kind === 'exploreGroups';
         const isMulti = m.kind === 'multi';
         if (isRule) {
           body.appendChild(ruleWidget(m));
@@ -393,14 +465,21 @@
         row.appendChild(fieldLabel(m));
         if (isKv) {
           body.appendChild(row);
-          body.appendChild(m.kind === 'kv' ? kvWidget(m) : loginFieldsWidget(m.path));
+          body.appendChild(
+            m.kind === 'kv' ? kvWidget(m)
+              : m.kind === 'exploreFilters' ? filtersWidget(m.path)
+                : loginFieldsWidget(m.path));
         } else if (isCode) {
           body.appendChild(row);
-          const ta = el('textarea', { class: 'code', placeholder: m.ph || 'function NAME( … ) { … }' });
-          ta.value = state[m.path].value || '';
-          ta.addEventListener('input', () => { state[m.path].value = ta.value === '' ? null : ta.value; });
-          trackFocus(ta, m.path);
-          body.appendChild(ta);
+          if (m.kind === 'exploreGroups') {
+            body.appendChild(groupsWidget(m.path));
+          } else {
+            const ta = el('textarea', { class: 'code', placeholder: m.ph || 'function NAME( … ) { … }' });
+            ta.value = state[m.path].value || '';
+            ta.addEventListener('input', () => { state[m.path].value = ta.value === '' ? null : ta.value; });
+            trackFocus(ta, m.path);
+            body.appendChild(ta);
+          }
           body.appendChild(el('div', { class: 'desc', text: m.help }));
         } else {
           row.appendChild(simpleWidget(m));
@@ -422,28 +501,55 @@
   function secIdOfGroup(g) {
     if (g.title.includes('第 1 步')) return 'sec-meta';
     if (g.title.includes('search')) return 'sec-search';
+    if (g.title.includes('explore')) return 'sec-explore';
     if (g.title.includes('detail')) return 'sec-detail';
     if (g.title.includes('toc')) return 'sec-toc';
     if (g.title.includes('content')) return 'sec-content';
     return 'sec-' + cssId(g.title);
   }
 
-  // ───────── 诊断条 ─────────
+  // ───────── 诊断条（E2：点击诊断 → 跳到表单字段） ─────────
+  let curDiags = [];
   function renderDiags(diags) {
+    curDiags = diags || [];
     const bar = document.getElementById('diags');
     bar.textContent = '';
-    if (!diags || !diags.length) {
+    if (!curDiags.length) {
       bar.appendChild(el('div', { class: 'ok', text: '✓ 无诊断（编译通过）' }));
       return;
     }
-    for (const d of diags.slice(0, 12)) {
+    for (const d of curDiags.slice(0, 12)) {
       const sev = d.severity === 2 ? 'warn' : '';
-      bar.appendChild(el('div', { class: 'd ' + sev,
-        text: `[${d.code}] ${d.message}（位置：${d.path}）—— ${d.hint || ''}` }));
+      const dpath = diagPath(d);
+      const msgLine = String(d.message || '').split('\n')[0].replace(/（at [^）]*）\s*$/, '');
+      const chip = el('button', { class: 'd ' + sev,
+        title: dpath ? '点击跳到对应字段' : '该诊断无可定位字段',
+        text: `[${d.code}] ${msgLine}${dpath ? `（${dpath}）` : ''}` });
+      chip.addEventListener('click', () => {
+        if (!dpath) return;
+        const sid = sectionIdOf(dpath);
+        const sec = sid ? document.getElementById(sid) : null;
+        if (sec) {
+          sec.open = true;
+          sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        const field = document.querySelector(`[data-field="${CSS.escape(dpath)}"]`);
+        const target = field || sec;
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('diag-flash');
+          setTimeout(() => target.classList.remove('diag-flash'), 1600);
+        }
+      });
+      bar.appendChild(chip);
+      const hint = el('div', { class: 'd-hint', text: d.hint || (d.message.split('\n')[1] || '').replace(/^hint:\s*/, '') });
+      bar.appendChild(hint);
     }
-    if (diags.length > 12) {
-      bar.appendChild(el('div', { class: 'muted', text: `…共 ${diags.length} 条诊断` }));
+    if (curDiags.length > 12) {
+      bar.appendChild(el('div', { class: 'muted', text: `…共 ${curDiags.length} 条诊断` }));
     }
+    // 字段警示徽标需要重渲染（诊断到达晚于首渲染）
+    if (typeof render === 'function') render();
   }
 
   // ───────── 消息处理 ─────────
@@ -465,8 +571,16 @@
       renderBanner();
       render();
     } else if (msg.type === 'diags') {
-      renderDiags(msg.diags);
+      renderDiags(msg.diags ?? msg.diagnostics ?? []);
     }
+  });
+
+  // 错误表面：面板内任何未捕获异常显示在横幅上方（调试器工具自身的诚实失败）
+  window.addEventListener('error', (ev) => {
+    const b = document.getElementById('banner');
+    if (!b) return;
+    const line = el('div', { class: 'missing', text: `表单渲染错误：${ev.message}（${ev.filename ? ev.filename.split('/').pop() : ''}:${ev.lineno}）` });
+    b.parentNode.insertBefore(line, b);
   });
 
   /** 外部文档更新合并：聚焦路径保留本地编辑值，其余采用外部值。 */

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RSL 调试器</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">RSL</span>
+    <strong>调试器</strong>
+    <span class="proto">rsl-debug/1</span>
+  </div>
+  <div class="conn">
+    <span id="conn-dot" class="dot dot-off"></span>
+    <span id="conn-text">未连接</span>
+    <span id="label" class="muted"></span>
+  </div>
+  <div class="top-actions">
+    <button id="btn-pause" class="btn" title="暂停后不再自动重跑（防止高频打站点）">⏸ 实时：开</button>
+  </div>
+</header>
+
+<div id="diag-bar" class="diag-bar hidden"></div>
+
+<main class="layout">
+  <!-- 左栏：阶段 + 输入 + 链式轨迹 + 源文本 -->
+  <aside class="left">
+    <section class="card">
+      <h2>调试阶段</h2>
+      <div class="stage-tabs" id="stage-tabs">
+        <button data-stage="search" class="stage-tab">搜索</button>
+        <button data-stage="explore" class="stage-tab">发现</button>
+        <button data-stage="detail" class="stage-tab">详情</button>
+        <button data-stage="toc" class="stage-tab">目录</button>
+        <button data-stage="content" class="stage-tab">正文</button>
+      </div>
+      <p class="hint" id="stage-hint"></p>
+    </section>
+
+    <section class="card" id="input-card">
+      <h2>输入</h2>
+      <div id="inputs-search">
+        <label class="field">搜索词 <input id="in-kw" type="text" placeholder="关键字"></label>
+        <label class="field">页码 <input id="in-page" type="number" min="1" value="1"></label>
+      </div>
+      <div id="inputs-book" class="hidden">
+        <div class="kv" id="book-view"></div>
+        <button id="btn-clear-book" class="btn small">清除选书（回到搜索）</button>
+      </div>
+      <div id="inputs-chapter" class="hidden">
+        <div class="kv" id="chapter-view"></div>
+        <button id="btn-clear-chapter" class="btn small">清除选章（回到目录）</button>
+      </div>
+      <div id="inputs-explore" class="hidden">
+        <h3>分组（groups）</h3>
+        <div id="groups-tree" class="tree"></div>
+        <h3>筛选（filters）</h3>
+        <div id="filters-panel"></div>
+      </div>
+      <div class="run-row">
+        <button id="btn-run" class="btn primary">▶ 运行</button>
+        <span id="run-status" class="muted"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>链式轨迹</h2>
+      <p class="hint">搜索 → 详情 → 目录 → 正文，每步点选结果往下传；发现是独立入口。</p>
+      <ol id="chain-list" class="chain"></ol>
+    </section>
+
+    <section class="card">
+      <h2>离线重放（fixture）</h2>
+      <p class="hint">把录制的响应贴进来，调试全程不碰真实站点（L2 语义）。</p>
+      <label class="check"><input id="fx-on" type="checkbox"> 启用 fixture 重放</label>
+      <label class="check"><input id="fx-b64" type="checkbox"> 响应体是 Base64（GBK/二进制等非 UTF-8 备好）</label>
+      <div class="fx-row">
+        <label class="field">状态码 <input id="fx-status" type="number" value="200"></label>
+        <label class="field">Content-Type <input id="fx-ct" type="text" value="text/html; charset=utf-8"></label>
+      </div>
+      <textarea id="fx-body" spellcheck="false" placeholder="响应体（HTML/JSON 文本）"></textarea>
+    </section>
+
+    <section class="card">
+      <h2>源文本 <span class="muted small">（编辑即最新规则，800ms 防抖实时重跑）</span></h2>
+      <textarea id="source-text" spellcheck="false" placeholder="粘贴或编辑 RSL 源（JSON）；VS Code 扩展会自动把编辑缓冲推送到这里"></textarea>
+    </section>
+  </aside>
+
+  <!-- 右栏：四 tab 结果区 -->
+  <section class="right">
+    <nav class="tabs" id="tabs">
+      <button data-tab="raw" class="tab active">原始数据</button>
+      <button data-tab="out" class="tab">解析结果</button>
+      <button data-tab="head" class="tab">协议标头</button>
+      <button data-tab="visual" class="tab">可视界面</button>
+      <span id="page-picker" class="page-picker hidden"></span>
+    </nav>
+    <div class="tab-tools hidden" id="raw-tools">
+      <button class="btn small" data-rawmode="pretty">美化</button>
+      <button class="btn small" data-rawmode="unwrap">取消换行</button>
+      <button class="btn small" data-rawmode="raw">还原</button>
+      <span id="raw-meta" class="muted small"></span>
+    </div>
+    <div id="tab-body" class="tab-body"></div>
+  </section>
+</main>
+
+<footer class="foot">
+  执行唯一在 Rust 内核（本机 rsl serve · 127.0.0.1）；前端只渲染与编排，零解析逻辑。响应体仅内存预览 ≤256KB，不落盘。
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

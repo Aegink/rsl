@@ -179,6 +179,21 @@ const ZH = {
   'stages.content.out.content': { zh: '正文元素', help: '章节正文所在的元素；split 决定怎么切成段落', ph: 'div#content' },
   'stages.search.paginate.next': { zh: '下一页链接', help: '列表页"下一页"元素；翻到没有就自动停', ph: 'a.next' },
   'stages.search.paginate.max': { zh: '最大页数', help: '翻页上限（防止打爆站点）', ph: '10' },
+  'stages.explore.request.url': { zh: '发现接口地址', help: '分类/榜单列表页；${var:group.params.cat} 来自分组树点选，${var:filter.xxx} 来自筛选器', ph: 'https://www.mysite.example.com/list?cat=${var:group.params.cat}' },
+  'stages.explore.filters': { zh: '筛选声明', help: '宿主渲染成筛选控件；每行一个筛选器：键 | 选项（每行"值|显示名"）。值经 var:filter.键 注入' },
+  'stages.explore.groups': { zh: '分组树', help: '发现页分类树：一行一个分组；二级用 父/子；参数用 | 键=值（多个逗号分隔）。有子级的父项只作标题不请求' },
+  'stages.explore.groupsFrom': { zh: '动态抓分类', help: '从站点页面抓分类树的选择器（有它就不用手写分组）', ph: 'css:div.cats a' },
+  'stages.explore.out.list': { zh: '列表选择器', help: '在发现列表里选出"每一本书"的重复元素', ph: '.list .item' },
+  'stages.explore.out.map.name': { zh: '书名', help: '列表项里的书名元素', ph: 'h3' },
+  'stages.explore.out.map.url': { zh: '详情链接（必填）', help: '列表项里的详情页链接；配 absolute 步骤补全' },
+  'stages.explore.out.map.author': { zh: '作者', help: '列表项里的作者；没有就点"移除"', ph: '.sub' },
+  'stages.explore.out.map.kind': { zh: '分类', help: '如"玄幻""都市"', ph: 'span.kind' },
+  'stages.explore.out.map.cover': { zh: '封面图', help: '封面图片地址', ph: 'img' },
+  'stages.explore.out.map.wordCount': { zh: '字数', help: '总字数（可用 number 步骤取数值）', ph: 'span.words' },
+  'stages.explore.out.map.lastChapter': { zh: '最新章节', help: '最新一章标题', ph: 'span.latest' },
+  'stages.explore.out.map.updateTime': { zh: '更新时间', help: '最近更新时间', ph: 'span.time' },
+  'stages.explore.paginate.next': { zh: '下一页链接', help: '发现列表"下一页"元素；翻到没有就自动停', ph: 'a.next' },
+  'stages.explore.paginate.max': { zh: '最大页数', help: '翻页上限（防止打爆站点）', ph: '20' },
   'login.type': { zh: '登录方式', help: 'form=表单登录 / webview=打开网页登录 / qr=扫码 / token=令牌 / cookie=Cookie' },
   'login.webview.entry': { zh: '登录页地址', help: '宿主打开这个网页让用户手动登录', ph: 'https://www.mysite.example.com/login' },
   'login.webview.success': { zh: '登录成功判定', help: '登录成功后才出现的元素（如头像）；宿主据此确认', ph: 'div.user-avatar' },
@@ -212,11 +227,12 @@ function modeledPaths() {
   paths.push(mk('http.headers', 'kv'));
   paths.push(mk('http.timeout', 'number'));
 
-  for (const st of ['search', 'detail', 'toc', 'content']) {
+  for (const st of ['search', 'explore', 'detail', 'toc', 'content']) {
     paths.push(mk(`stages.${st}.request.url`, 'text'));
   }
   paths.push(mk('stages.search.out.list', 'selector'));
   paths.push(mk('stages.toc.out.list', 'selector'));
+  paths.push(mk('stages.explore.out.list', 'selector'));
   for (const f of SEARCH_MAP_FIELDS) {
     paths.push(mk(`stages.search.out.map.${f}`, 'rule',
       f === 'url' ? { requiredField: true } : {}));
@@ -229,9 +245,18 @@ function modeledPaths() {
     paths.push(mk(`stages.toc.out.map.${f}`, 'rule',
       f === 'url' ? { requiredField: true } : {}));
   }
+  for (const f of SEARCH_MAP_FIELDS) {
+    paths.push(mk(`stages.explore.out.map.${f}`, 'rule',
+      f === 'url' ? { requiredField: true } : {}));
+  }
   paths.push(mk('stages.content.out.content', 'rule', { splitModes: SPLIT_MODES }));
   paths.push(mk('stages.search.paginate.next', 'selector'));
   paths.push(mk('stages.search.paginate.max', 'number'));
+  paths.push(mk('stages.explore.paginate.next', 'selector'));
+  paths.push(mk('stages.explore.paginate.max', 'number'));
+  paths.push(mk('stages.explore.filters', 'exploreFilters'));
+  paths.push(mk('stages.explore.groups', 'exploreGroups'));
+  paths.push(mk('stages.explore.groupsFrom', 'selector'));
   paths.push(mk('login.type', 'enum:form,cookie,token,qr,webview'));
   paths.push(mk('login.webview.entry', 'text'));
   paths.push(mk('login.webview.success', 'selector'));
@@ -262,6 +287,8 @@ const GROUPS = [
     desc: '目标：[章节标题, 章节链接] 列表。' },
   { title: '第 7 步 · content 正文（四阶段契约）', match: (p) => p.path.startsWith('stages.content.'),
     desc: '目标：章节正文。split=br 表示按 <br> 分段。' },
+  { title: '可选 · explore 发现（分类/榜单，独立入口）', match: (p) => p.path.startsWith('stages.explore.'),
+    desc: '发现是独立入口：分组树（groups）+ 筛选器（filters）→ 列表。不配则宿主不显示发现页。' },
   { title: '可选 · 登录（站点要登录才配）', match: (p) => p.path.startsWith('login.'),
     desc: '表单登录最常用；网页登录（webview）由宿主打开页面让用户手动操作。' },
   { title: '可选 · lib 脚本（加解密/清洗函数）', match: (p) => p.path.startsWith('lib.'),
@@ -335,6 +362,133 @@ function getPath(doc, path) {
   return cur;
 }
 
+// ───────────────────────── explore 建模（E1，R§6.3） ─────────────────────────
+
+/** 分组树 → 行文本（一行一个；二级 `父/子`；参数 `| k=v, k2=v2`）。 */
+function groupsToText(nodes) {
+  const paramsText = (p) => Object.entries(p || {})
+    .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`)
+    .join(', ');
+  const lines = [];
+  for (const n of Array.isArray(nodes) ? nodes : []) {
+    const kids = Array.isArray(n.groups) ? n.groups : null;
+    if (kids && kids.length) {
+      for (const c of kids) {
+        const pt = paramsText(c.params);
+        lines.push(`${n.title || ''}/${c.title || ''}${pt ? ' | ' + pt : ''}`);
+      }
+    } else {
+      const pt = paramsText(n.params);
+      lines.push(`${n.title || ''}${pt ? ' | ' + pt : ''}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/** 行文本 → 分组树（两级；R§6.3：有子级的只作分组标题）。 */
+function groupsFromText(text) {
+  const out = [];
+  for (const line of String(text || '').split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    const bar = t.indexOf('|');
+    const head = (bar === -1 ? t : t.slice(0, bar)).trim();
+    const params = {};
+    for (const kv of (bar === -1 ? '' : t.slice(bar + 1)).split(',')) {
+      const s = kv.trim();
+      const eq = s.indexOf('=');
+      if (eq > 0) params[s.slice(0, eq).trim()] = s.slice(eq + 1).trim();
+    }
+    const parts = head.split('/').map((s) => s.trim()).filter(Boolean);
+    if (!parts.length) continue;
+    if (parts.length === 1) {
+      const node = { title: parts[0] };
+      if (Object.keys(params).length) node.params = params;
+      out.push(node);
+    } else {
+      let parent = out.find((n) => n.title === parts[0] && Array.isArray(n.groups));
+      if (!parent) {
+        parent = { title: parts[0], groups: [] };
+        out.push(parent);
+      }
+      const node = { title: parts[parts.length - 1] };
+      if (Object.keys(params).length) node.params = params;
+      parent.groups.push(node);
+    }
+  }
+  return out;
+}
+
+/** 只投影建模键（title/params/groups），用于「未编辑 → 原样保真」判定。 */
+function groupsProjection(nodes) {
+  const proj = (ns) => (Array.isArray(ns) ? ns : []).map((n) => ({
+    title: n.title,
+    params: n.params || undefined,
+    groups: Array.isArray(n.groups) && n.groups.length ? proj(n.groups) : undefined,
+  }));
+  return JSON.stringify(proj(nodes));
+}
+
+/** 把 raw 树中未建模键（url/when/…）按路径并回重建树（父/子节点都入映射）。 */
+function mergeGroupExtras(rebuilt, raw) {
+  const flat = (nodes, prefix, acc) => {
+    for (const n of Array.isArray(nodes) ? nodes : []) {
+      const path = prefix ? `${prefix}/${n.title}` : String(n.title || '');
+      acc.set(path, n);
+      if (Array.isArray(n.groups) && n.groups.length) flat(n.groups, path, acc);
+    }
+    return acc;
+  };
+  const rawByPath = flat(raw, '', new Map());
+  const applyNode = (nodes, prefix) => {
+    for (const n of nodes) {
+      const hasKids = Array.isArray(n.groups) && n.groups.length;
+      const path = prefix ? `${prefix}/${n.title}` : String(n.title || '');
+      const orig = rawByPath.get(path);
+      if (orig) {
+        for (const [k, val] of Object.entries(orig)) {
+          if (!['title', 'params', 'groups'].includes(k) && !(k in n)) n[k] = cloneJson(val);
+        }
+      }
+      if (hasKids) applyNode(n.groups, path);
+    }
+  };
+  applyNode(rebuilt, '');
+  return rebuilt;
+}
+
+const GROUP_MODELED_KEYS = ['title', 'params', 'groups'];
+const FILTER_MODELED_KEYS = ['key', 'label', 'default', 'persist', 'options'];
+
+function pickExtras(obj, modeledKeys) {
+  const extras = {};
+  for (const [k, val] of Object.entries(obj || {})) {
+    if (!modeledKeys.includes(k)) extras[k] = cloneJson(val);
+  }
+  return extras;
+}
+
+/** 选项列表 → 行文本（`值|显示名` 或裸 `值`）。 */
+function optionsToText(options) {
+  return (Array.isArray(options) ? options : [])
+    .map((o) => (typeof o === 'string' ? o : `${o.value}|${o.label !== undefined ? o.label : o.value}`))
+    .join('\n');
+}
+
+/** 行文本 → 选项列表（`a|最新` → {value,label}；裸 `a` → "a"）。 */
+function optionsFromText(text) {
+  return String(text || '').split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const bar = line.indexOf('|');
+      if (bar > 0) {
+        return { value: line.slice(0, bar).trim(), label: line.slice(bar + 1).trim() };
+      }
+      return line;
+    });
+}
+
 // ───────────────────────── extract：文档 → 表单状态 ─────────────────────────
 
 /** 文档 → 表单状态：{ path: {value, present}, … }（未建模内容不进入状态）。 */
@@ -354,6 +508,28 @@ function extractFormState(doc) {
           ? raw.filter((f) => f && typeof f.key === 'string')
             .map((f) => ({ key: f.key, label: f.label || '', secret: Boolean(f.secret), def: typeof f.default === 'string' ? f.default : '' }))
           : [];
+        break;
+      case m.kind === 'exploreFilters':
+        value = Array.isArray(raw)
+          ? raw.map((f) => ({
+            key: typeof f.key === 'string' ? f.key : '',
+            label: typeof f.label === 'string' ? f.label : '',
+            defaultRaw: f.default,
+            defaultText: f.default === undefined || f.default === null ? '' : String(f.default),
+            persist: Boolean(f.persist),
+            optionsText: optionsToText(f.options),
+            rawExtras: pickExtras(f, FILTER_MODELED_KEYS),
+            rawOptions: Array.isArray(f.options) ? cloneJson(f.options) : null,
+          }))
+          : [];
+        break;
+      case m.kind === 'exploreGroups':
+        value = {
+          text: groupsToText(raw),
+          raw: Array.isArray(raw) ? raw : null,
+          // 未编辑判定：投影（title/params/groups）与文本往返一致 → apply 原样保真（extras 不丢）
+          roundTrip: groupsProjection(groupsFromText(groupsToText(raw))) === groupsProjection(raw),
+        };
         break;
       case m.kind === 'multi':
         value = present && Array.isArray(raw) ? raw.filter((x) => typeof x === 'string') : [];
@@ -444,6 +620,42 @@ function applyFormState(doc, state) {
       else if (entry.present) setPath(out, path, undefined);
       continue;
     }
+    if (path === 'stages.explore.filters') {
+      // E1 筛选声明控件化（V4-D9）：optionsText ↔ options；未建模键按行序并回
+      const arr = v.filter((f) => f.key).map((f, i) => {
+        const o = { key: f.key };
+        if (f.label) o.label = f.label;
+        // default 类型保真：未改文本 → 原值原类型；改了 → 新文本
+        if (f.defaultText !== '') o.default = String(f.defaultRaw) === f.defaultText ? f.defaultRaw : f.defaultText;
+        if (f.persist) o.persist = true;
+        const opts = optionsFromText(f.optionsText);
+        if (opts.length) {
+          // 未编辑文本 → 原选项保真（对象选项的未建模键不丢）；编辑了 → 行文本重建
+          const rawOpts = Array.isArray(f.rawOptions) ? f.rawOptions : null;
+          o.options = rawOpts && optionsToText(rawOpts) === f.optionsText ? cloneJson(rawOpts) : opts;
+        }
+        for (const [k, val] of Object.entries(f.rawExtras || {})) {
+          if (!(k in o)) o[k] = cloneJson(val);
+        }
+        return o;
+      });
+      if (arr.length) setPath(out, path, arr);
+      else if (entry.present) setPath(out, path, undefined);
+      continue;
+    }
+    if (path === 'stages.explore.groups') {
+      // E1 分组树：未编辑 → 原样保真；编辑 → 行重建 + 未建模键按路径并回
+      let nodes = null;
+      if (v.raw && v.roundTrip) {
+        nodes = cloneJson(v.raw);
+      } else {
+        nodes = groupsFromText(v.text);
+        if (v.raw) nodes = mergeGroupExtras(nodes, v.raw);
+      }
+      if (nodes && nodes.length) setPath(out, path, nodes);
+      else if (entry.present) setPath(out, path, undefined);
+      continue;
+    }
     if (v && typeof v === 'object' && 'selector' in v) { // rule 字段
       setPath(out, path, serializeRule(v) ?? undefined);
       continue;
@@ -458,6 +670,8 @@ function applyFormState(doc, state) {
   const pruneList = ['stages.search.paginate', 'stages.search.out.map', 'stages.toc.out.map',
     'stages.detail.out', 'stages.search.out', 'stages.toc.out',
     'stages.search.request', 'stages.detail.request', 'stages.toc.request', 'stages.content.request',
+    'stages.explore.paginate', 'stages.explore.out.map', 'stages.explore.out',
+    'stages.explore.request', 'stages.explore.filters', 'stages.explore.groups',
     'login.webview', 'login.relogin', 'login.check', 'login.submit', 'login',
     'http.headers', 'http.timeout', 'http', 'requires', 'lib.pure', 'lib.ctx', 'lib', 'vars'];
   const isEmptyObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length === 0;

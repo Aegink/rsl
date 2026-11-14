@@ -152,7 +152,7 @@
           "updateTime": { "$": "css:span.t", "optional": true }
         }
       },
-      "paginate": { "kind": "next", "next": "css:a.next-page", "max": 50, "dedupe": "url" }
+      "paginate": { "kind": "next", "next": "css:a.next-page", "max": 50 }
     },
 
     "content": {

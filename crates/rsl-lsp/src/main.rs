@@ -305,15 +305,17 @@ fn diag_json(d: &Diagnostic, text: &str) -> Value {
         "code": d.code.as_str(),
         "source": "rsl",
         "message": format!("{}（at {}）\nhint: {}", d.message, d.path, d.hint),
+        // E2 双向定位：JSON path 随 data 下发（表单面板据此跳到对应字段）
+        "data": {
+            "path": d.path,
+        },
     });
     // F1→F2：确定性 fix 随诊断下发（data.fix），code action 据此生成 TextEdit
     if let Some(fx) = &d.fix {
-        m["data"] = json!({
-            "fix": {
-                "find": fx.find,
-                "replacement": fx.replacement,
-                "message": fx.message,
-            }
+        m["data"]["fix"] = json!({
+            "find": fx.find,
+            "replacement": fx.replacement,
+            "message": fx.message,
         });
     }
     m

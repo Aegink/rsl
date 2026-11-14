@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { LspClient } = require('./lib/rpc');
 const { FormPanel } = require('./form-panel');
+const { DebugPanel } = require('./debug-panel');
 
 /** 解析 rsl-lsp 路径：显式配置 > 工作区 target/debug 回退（仓库根打开即开箱可用）> PATH。 */
 function resolveLspPath() {
@@ -42,6 +43,8 @@ function activateInner(context) {
 
   // H2 M1/M2：表单编辑器（同一面板承载两种模式）
   const formPanel = new FormPanel(context);
+  // T6：调试面板（spawn rsl serve + webview iframe + didChange 转发）
+  const debugPanel = new DebugPanel(context);
   context.subscriptions.push({
     dispose() {
       if (client) {
@@ -117,12 +120,23 @@ function activateInner(context) {
     });
     // M2：文本 → 表单（面板内部会跳过自己 apply 触发的变更）
     formPanel.onDocChanged(e.document);
+    // T5/T6：编辑缓冲 → 调试面板（免保存实时重跑，前端 800ms 防抖）
+    debugPanel.onDocChanged(e.document);
   }, null, context.subscriptions);
   vscode.workspace.textDocuments.forEach(sync);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('rsl.formEditor', () => {
       formPanel.open(vscode.window.activeTextEditor);
+    }),
+    vscode.commands.registerCommand('rsl.debug', async () => {
+      if (debugPanel.serve && !debugPanel.serve.exited) {
+        const pick = await vscode.window.showQuickPick(['打开调试器', '停止调试服务'], { title: 'RSL 调试' });
+        if (pick === '打开调试器') await debugPanel.open(vscode.window.activeTextEditor);
+        if (pick === '停止调试服务') await debugPanel.stop();
+      } else {
+        await debugPanel.open(vscode.window.activeTextEditor);
+      }
     }),
   );
 

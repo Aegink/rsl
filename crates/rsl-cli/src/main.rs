@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 mod check;
 mod fuzz;
 mod import;
+mod serve;
 
 fn main() {
     // windows-gnu 链接器默认主线程栈过小（深递归解析/编译会溢出）——
@@ -57,6 +58,7 @@ fn run_main(args: Vec<String>) -> i32 {
         "fuzz" => fuzz::cmd_fuzz(rest),
         "import" => import::cmd_import(rest),
         "check" => check::cmd_check(rest),
+        "serve" => serve::cmd_serve(rest),
         "help" | "--help" | "-h" => {
             print_help();
             0
