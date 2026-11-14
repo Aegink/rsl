@@ -12,7 +12,11 @@ members = [
 version = "2.0.0"
 edition = "2021"
 license = "MIT"
-authors = ["rsl-spec"]
+authors = ["RSL contributors"]
+repository = "https://github.com/rsl-spec/rsl"
+homepage = "https://github.com/rsl-spec/rsl"
+keywords = ["reader", "book-source", "language", "parser", "cross-platform"]
+categories = ["parsing", "text-processing"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

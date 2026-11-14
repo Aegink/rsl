@@ -1,7 +1,7 @@
 ---
 id: rsl-language
 type: module-design
-status: draft
+status: active
 title: RSL 语言契约（规范正文）
 parent: rsl-arch
 tags: [rsl, spec, language]

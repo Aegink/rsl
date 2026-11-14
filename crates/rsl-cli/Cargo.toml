@@ -3,7 +3,7 @@ name = "rsl-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "RSL command line tool (lint/compile/run/record/test/build/pack/convert/explain)"
+description = "RSL command line tool: lint/compile/run/test/record/convert/import/build/pack/explain/fuzz"
 
 [[bin]]
 name = "rsl"

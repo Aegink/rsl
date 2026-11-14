@@ -5,6 +5,20 @@
 
 ---
 
+## 当前状态（2026-11-14）
+
+| 里程碑 | 状态 |
+|---|---|
+| M1 编译器 / M2 传输 / M3 执行器 / M4 脚本表达式 | ✅ 完成（`TASK-BOOK.md`，commit 历史见 §1.1） |
+| M5 测试工具链（CLI 九命令 / YAML 用例 / fixture / convert / 门禁） | ✅ 完成 |
+| M6 绑定（C ABI / Swift / JNI / WASM，golden 三端一致） | ✅ 完成（真机链接验证待外部环境） |
+| 增强：更稳定（fuzz / proptest / 取消 / panic 审计） | ✅ 完成（`TASK-BOOK-2.md` §7.4） |
+| 增强：更好用（LSP / watch / import） | ✅ 完成（VS Code GUI 截图待桌面环境） |
+| 增强：更强大（QuickJS / JSONPath 9535 / CSS4 / 基准） | ✅ 完成 |
+| M6 编辑器（可视化规则编辑，Web） | ⬜ 未开始（后续） |
+
+---
+
 ## 已完成（文档层，2026-11-20）
 
 | 项 | 产出 |

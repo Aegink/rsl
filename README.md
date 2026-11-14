@@ -1,151 +1,228 @@
+<div align="center">
+
 # RSL · Reader Source Language
 
-> **RSL 是一门"阅读源"的描述语言**：用一份 JSON 说明怎么从**一个站点**取书——搜索、详情、目录、正文——由同一个内核在 iOS / Android / WASM / CLI 上执行。
-> 与 Legado **不兼容**，也不打算兼容：存量源通过一次性转换器迁移。
-> 当前版本 **2.0**（Draft），规范正文见 [`spec/RSL-1.0.md`](spec/RSL-1.0.md)。
+**一门"阅读源"的描述语言：用一份 JSON 声明怎么从站点取书，由同一个内核在 CLI / iOS / Android / WASM 上执行。**
 
-| 卖点 | 含义 | 证据 |
+`RSL 2.0` · Rust 实现 · MIT License · 与阅读（Legado）不兼容——存量源经一次性转换器迁移
+
+[规范](spec/RSL-1.0.md) · [对比阅读](docs/comparison-vs-legado.md) · [迁移手册](spec/MIGRATION.md) · [错误全书](spec/ERRORS.md)
+
+</div>
+
+---
+
+## 为什么是 RSL
+
+给"读书软件如何拿书"这件事一个**可审计、可测试、跨端一致**的规则标准。
+
+| 设计目标 | 含义 | 在规范中的锚点 |
 |---|---|---|
-| **跨端一致** | 同一份源在四个平台给出同一结果：正则限 RE2 子集、选择器语义显式、脚本只有两档、合并语义写进契约 | §3.4 · §7.1 · §12.4 |
-| **失败有码** | 永不返回裸空串。"合法空 / 可降级 / 失败"是三种结果、三种码，附 `path` + `rule` + `hint` + `sample` | §11 · §11.3 |
-| **编译期拦截** | 拼错 `var:book.tocUrl`、在 `node[]` 上跑正则、逐章规则里发请求，都在**加载前**变成错误码 | §13.3 · 附录 D |
+| **跨端一致** | 同一份源在四个端给出同一结果：正则限 RE2 子集（无回溯）、选择器语义显式、脚本两档隔离、合并语义写进契约 | §3.4 · §7.1 · §12.4 |
+| **失败有码** | 永不返回裸空串。"合法空 / 可降级 / 失败"是三种结果、三种码，附 `path` + `hint` + `sample` | §11 · §11.3 |
+| **编译期拦截** | 拼错 `var:book.tocUrl`、在 `node[]` 上跑正则、逐章规则里发请求——都在**加载前**变成错误码 | §13.3 · 附录 D |
+| **能力按需付费** | 90% 的源不需要登录/WebView/加解密；它们是可选块，不出现就不占认知 | §4 · §6 |
+| **规则是数据** | 可 diff、可 lint、可 fuzz、可回归——这是与"字符串规则"的根本区别 | 全文 |
+
+一句话立场：**不兼容 Legado 规则，也不打算兼容**。那套字符串规则的 8 级前缀优先级与
+运行期粘滞解释，正是静默失败与不可静态分析的根源。存量源走 `rsl convert` 一次性迁移
+（10,671 真实源实测 99.98% 可转换），对比详见
+[**RSL 与阅读（Legado）对比**](docs/comparison-vs-legado.md)。
 
 ---
 
 ## 5 分钟看懂一个源
 
-小说站，四个阶段全在。注意三件事：**每个选择器都有前缀**、**`request` 是对象不是字符串尾巴**、**`out` 是唯一出口**。
+小说站，五阶段里的四个。注意三件事：**每个选择器都有前缀**、**`request` 是对象不是字符串**、
+**`out` 是唯一出口**。
 
 ```jsonc
-{ "rsl": "2.0", "id": "novel.example", "name": "示例小说站", "type": "novel",   // 必填：版本 / 标识 / 名字 / 默认载体
-  "baseUrl": "https://novel.example", "stages": {                             // 相对地址基准
-    "search": {                                                                 // ① 搜索
+{ "rsl": "2.0", "id": "novel.example", "name": "示例小说站", "type": "novel",
+  "baseUrl": "https://novel.example", "stages": {
+    "search": {                                                                  // ① 搜索
       "request": { "url": "var:baseUrl/search", "params": { "q": "var:kw", "pn": "expr:page - 1" } },
-      "out": { "emptyOk": true, "list": "css:ul.result > li",                   // emptyOk：没有结果是合法结果
-        "map": { "name": { "$": "css:a.title", "transform": [{ "trim": true }] },  // → 条目字段 name
-                 "url": { "$": "css:a.title", "attr": "href", "transform": [{ "absolute": true }] } } },  // → 条目 url
+      "out": { "emptyOk": true, "list": "css:ul.result > li",                    // emptyOk：没有结果是合法结果
+        "map": { "name": { "$": "css:a.title", "transform": [{ "trim": true }] },
+                 "url":  { "$": "css:a.title", "attr": "href", "transform": [{ "absolute": true }] } } },
       "paginate": { "kind": "page", "pageVar": "page", "max": 20 } },            // 分页交给引擎，不手拼 URL
-    "detail": { "request": { "url": "var:book.url" },                           // ② 详情：var:book 由宿主显式注入
-      "out": { "name": "css:h1", "author": "css:.author",                       // 字符串 = 省略 "$" 的快捷写法
-               "tocUrl": { "$": "css:a.read", "attr": "href", "transform": [{ "absolute": true }] } } },  // 目录地址≠详情地址是常态
+    "detail": { "request": { "url": "var:book.url" },                            // ② 详情：var:book 由宿主显式注入
+      "out": { "name": "css:h1", "author": "css:.author",
+               "tocUrl": { "$": "css:a.read", "attr": "href", "transform": [{ "absolute": true }] } } },
     "toc": { "request": { "url": "var:book.tocUrl" }, "reuseDetailHtml": true,   // ③ 目录：与详情同页则不重复请求
-      "out": { "list": "css:#list dd", "map": { "title": "css:a",                // 逐章规则：只允许纯选择器
+      "out": { "list": "css:#list dd", "map": { "title": "css:a",                // 逐章规则：只允许纯选择器（编译期 E_COST 把关）
                "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] } } } },
-    "content": { "request": { "url": "var:chapter.url", "charset": "gbk" },      // ④ 正文：响应解码用 charset
-      "out": { "content": { "$": "css:div#content",                             // var:chapter 由宿主注入
+    "content": { "request": { "url": "var:chapter.url", "charset": "gbk" },      // ④ 正文：显式解码
+      "out": { "content": { "$": "css:div#content",
                "strip": ["css:script", "css:.ad"],                              // 先删广告/脚本节点
                "paragraphs": { "split": "br" } } } }                            // 再拆成段落数组
   }
 }
 ```
 
-读这份文件时值得停一下的四个点：
-
 | 看到 | 说明 |
 |---|---|
-| `css:` `var:` `expr:` | 命名空间，没有"无前缀默认解释"；漏了前缀 = `E_SELECTOR` |
+| `css:` `var:` `expr:` | 命名空间，共 18 个；漏前缀 = 加载即 `E_SELECTOR` |
 | `var:kw` / `var:page` | 上下文变量，宿主注入、只读；`page` 由 `paginate` 提供 |
 | `"out"` | 阶段的唯一输出契约；`detail` 拿到的 `var:book` 字段就来自 `search.out.map` |
-| 没有 `script` / 没有 `requires` | 90% 的源不需要脚本和额外能力；不出现就不占认知 |
+| 没有 `login` / 没有 `script` | 90% 的源不需要；不出现就不占认知 |
 
 ---
 
-## 现在能跑什么
+## 快速开始
+
+### 构建
 
 ```bash
-# 文档层（无第三方依赖）
-python tools/check.py                # Schema 自洽性 + 示例一致性（5 个示例）
-python tools/consistency.py          # 文档一致性门禁（S↔Z↔E↔R 计数对齐）
-python prototype/expr_proto.py       # expr: 原型（18 求值 + 9 编译期）
-
-# Rust 内核（.toolchain/cargo，rustc 1.100 gnu）
-cargo test -p rsl-core               # 27 个测试：M1 编译器 18 + L2 执行链 4 + expr 2 + 探针 3
-
-# CLI 九命令（target/debug/rsl.exe）
-rsl lint examples/novel-html.rsl.json
-rsl compile examples/video-login.rsl.json
-rsl test tests/cases/novel-source.rsl.json --cases tests/cases/novel-html.yaml      # 7/7
-rsl test examples/aggregate-merge.rsl.json --cases tests/cases/aggregate-merge.yaml # 2/2
-rsl convert <legado.json> --out converted    # Legado 迁移草稿 + 报告
-python tools/conformance.py check            # 三端一致性 golden（CLI + WASM 编译级）
+# Rust stable（1.85+，edition 2021）
+cargo build --release -p rsl-cli
+# 产物：target/release/rsl(.exe) —— 九命令单二进制
 ```
 
-> Rust 工具链装在工作区 `.toolchain/`（不入库）：`export CARGO_HOME=$PWD/.toolchain/cargo RUSTUP_HOME=$PWD/.toolchain/rustup PATH=$PWD/.toolchain/cargo/bin:$PATH`
+<details>
+<summary>windows-gnu 工具链（本仓开发环境，含 LSP/基准）</summary>
 
 ```bash
-python prototype/expr_proto.py  # expr: 原型：18 条求值 + 9 条编译期拦截
+rustup toolchain install stable-x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu -p rsl-cli
 ```
-```
---- 编译期拦截 ---
-OK   pagee - 1                -> E_REF
-OK   md5('x')                 -> E_UNSUPPORTED
-OK   a.b                      -> E_EXPR_SYNTAX
-求值 18/18 通过；编译期用例 9/9 符合预期
+注意：MinGW 链接的主线程栈偏小，CLI/LSP 已内置 64MB 工作线程；自建入口遇到
+深递归溢出时同样处理即可。
+
+</details>
+
+### 九命令
+
+```bash
+rsl lint <src.rsl.json>          # 静态检查（20 条 lint + 编译期诊断，不联网）
+rsl compile <src.rsl.json>       # 编译 → IR 摘要
+rsl explain <src.rsl.json>       # 编译结论全览（给书源做"体检报告"）
+rsl run <src> <stage> [--kw …]   # 执行单个阶段
+rsl test <src> --cases <yaml>    # L2 fixture 重放回归（不联网；--watch 增量监听）
+rsl record <src> <stage>         # 录制真实响应为 fixture
+rsl convert <legado.json>        # Legado → RSL 草稿 + 不可转清单 + 复核清单
+rsl import <url-or-file>         # 批量拉取→转换→聚合报告→打包（yuancang / 本地 / 通用 URL）
+rsl build / pack                 # 确定性装配 + sha256 manifest / 打包
+rsl fuzz <target> [--minutes n]  # 内置模糊测试（5 个 harness）
 ```
 
-**Rust 内核已实现**（M1–M6 全部落地，见下方「当前状态」）：`crates/`（rsl-core / rsl-cli / rsl-ffi / rsl-wasm）、`bindings/`（iOS RSLKit / Android JNI）、`tests/`（l2_smoke / m1_compile / m4_expr / conformance）。`rsl lint` / `rsl compile` / `rsl run` / `rsl test` / `rsl convert` / `rsl record` / `rsl build` / `rsl pack` / `rsl explain` 九命令全部可用。
+### 编辑器支持
 
-> `examples/` 五个源都已声明 `rsl: "2.0"`，可对照 §附录 A 的说明逐个阅读。实现层裁决（D1–D11）登记于 `docs/handoff/handoff_2026-11-14_02-50.md`。
+```bash
+cargo build -p rsl-lsp && rsl-lsp   # stdio LSP server
+# publishDiagnostics（保存即 lint）/ hover（变量来源契约）/ completion（18 命名空间 + 31 管道步骤）
+# definition（var:book.id → 声明处）
+```
 
 ---
 
-## 文档地图（按"先读哪个"排序）
+## 架构
 
-| # | 文档 | 什么时候读 | 内容 | 状态 |
-|---|---|---|---|---|
-| 1 | [`spec/CONCEPTS.md`](spec/CONCEPTS.md) | **先读这个** | 心智模型：10 个"为什么这么设计"，不抄契约细节 | ✅ |
-| 2 | [`spec/PATTERNS.md`](spec/PATTERNS.md) | 写源时查 | 任务配方：搜索 / 目录 / 正文 / 分页 / 登录的标准写法 | ✅ |
-| 3 | [`spec/REFERENCE.md`](spec/REFERENCE.md) | 查字段时查 | 全字段速查表 | ✅ |
-| 4 | [`spec/ERRORS.md`](spec/ERRORS.md) | 报错时查 | 错误全书：31 个错误码的成因与修法 + 5 个警告码 | ✅ |
-| 5 | [`spec/RSL-1.0.md`](spec/RSL-1.0.md) | 写源 / 实现内核必读 | **唯一权威**。契约正文 v2.0：数据模型、取值、请求、状态、五阶段、脚本、预算、能力、错误、执行、工具链 | ✅ |
-| 6 | [`spec/MIGRATION.md`](spec/MIGRATION.md) | 从 Legado 迁 | 24 字段映射 + 22 条语法翻译 + 12 条行为差异 + 15 条不可转项 | ✅ |
-| 7 | [`spec/COMPILER.md`](spec/COMPILER.md) | 实现者 | 编译流水线、引用图、类型推断、`E_COST` 成本分析、步骤图校验、IR、模块拆分 | ✅ |
-| 8 | [`spec/EXPRESSIONS.md`](spec/EXPRESSIONS.md) | 实现者 | `expr:` 子语言：文法、类型、内置函数（含加密族）、检查清单 | ✅ |
-| 9 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) | **派工 / 验收** | 施工图：58 条能力 × 九维交叉验证矩阵、T1–T6 任务分解、前置文档全量落位、缺口 G-01–G-12 | ✅ |
-| 9.5 | [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) | **增强派工** | 内核增强任务书 v1.0：更稳定（fuzz/proptest/取消）、更好用（LSP/watch/import）、更强大（QuickJS/JSONPath 9535/CSS4）——24 能力 × 9 维矩阵 | ✅ Active（§7.4 实施记录） |
-| 10 | [`spec/GAP-AUDIT.md`](spec/GAP-AUDIT.md) | 改规范前先看 | 与现网引擎的差距矩阵（A1–A44）、取舍决定、明确不采纳的设计 | ✅ |
-| 11 | [`spec/KERNEL-COMPARE.md`](spec/KERNEL-COMPARE.md) | 关心架构的人 | 内核级逐层对比：Rimchars Archive v15（1742 个 `.kt` / 38.7 万行）vs RSL，58 条差异 + 源码行号 + 12 处 Legado 更强的地方 | ✅ |
-| 12 | [`spec/ROADMAP.md`](spec/ROADMAP.md) | 所有人 | 里程碑 M1–M6 与验收口径（计划，不是规范） | ✅ |
-| 13 | [`spec/INDUSTRY-RESEARCH.md`](spec/INDUSTRY-RESEARCH.md) | 追溯依据 | 业界调研原始记录，**非规范**；与正文冲突以 `RSL-1.0.md` 为准 | ✅ |
-| 14 | [`schema/rsl.schema.json`](schema/rsl.schema.json) | 编辑器 / CI | JSON Schema 2020-12，29 个 `$defs`，根级 `additionalProperties: true` | ✅ |
-| 15 | [`examples/`](examples/) | 想看完整源 | 五个可校验示例（HTML 小说 / JSON 漫画 / 带登录的视频 / 聚合合并 / 边界能力 where·zip·parse·stopIf），域名为虚构地址 | ✅ |
+```
+crates/
+  rsl-core        内核：analyze（编译器/引用图/类型推断/E_COST）→ ir（bincode）
+                  → selector（css/xpath/jsonpath 9535）→ exec（求值/ctx 桥/取消）
+                  → stage（五阶段编排/分页/登录/合并）→ script（boa / quickjs）
+                  → testkit（lint/golden）              —— 同步、无 tokio、无 IO 依赖
+  rsl-cli         九命令 + fuzz harness（单二进制）
+  rsl-lsp         LSP server（stdio JSON-RPC，std only）
+  rsl-ffi         C ABI（rsl.h）
+  rsl-wasm        wasm-bindgen（wasm32-unknown-unknown）
+bindings/
+  ios/            Swift RSLKit
+  android/        JNI
+```
 
-文档之间的分工是**互斥**的：想学 → `CONCEPTS.md`；想写 → `PATTERNS.md`；想查 → `REFERENCE.md`；报错 → `ERRORS.md`；想知道为什么 → `GAP-AUDIT.md` 与 `KERNEL-COMPARE.md`。`RSL-1.0.md` 只回答"合不合法、引擎必须怎么做"。
-
----
-
-## 设计公理
-
-1. **规则是数据。** 可 diff、可 lint、可回归、可被程序断言。
-2. **没有隐式通道。** 阶段之间只通过 `out` 契约传递；不存在"第一个结果自动变成 `var:book`"。
-3. **失败必须可区分。** "确实为空""可降级""失败"是三种结果，三种错误码。
-4. **跨端一致优先于方便。** 任何依赖宿主语言运行时的能力都不得进标准。
-5. **能力按需付费。** 90% 的源不需要登录/WebView/媒体解密；它们必须是可选块，不出现就不占认知。
-6. **凡是被证明有用的工程优化，必须进标准。** 详情→目录响应复用、占位保护、页码枚举——这些不是"实现细节"，是作者会反复重新发明的东西。
+`ports.rs` 定义 `Transport / WebViewPort / CookieStore / Clock` 端口——宿主注入，内核自身不联网。
+分层硬约束：`selector` 不依赖 `http`、`exec` 不依赖 `stage`、`analyze` 只读 `model + ir + expr`。
+JS 引擎经 `ScriptEngine` 端口注入：默认 Boa（全平台一致），native 可切
+`--features engine-quickjs`（基准：QuickJS/Boa = 2.0–3.4×，语义等价 55/55）。
 
 ---
 
-## 当前状态（v2.0）
+## 工程质量（实测）
 
-| 层 | 状态 |
+| 项 | 结果 |
 |---|---|
-| 语言契约 v2.0 | ✅ 完成（`login.steps[]`、`merge`、`script.onResponse`、`paginate.enumerate`、`toc.reuseDetailHtml`、`content.direct`、`protect`、`E_COST`） |
-| JSON Schema | ✅ 完成（2020-12，29 个 `$defs`，四个示例全部通过校验） |
-| 编译器设计 | ✅ 完成（引用图、类型推断、`E_COST`、feature/算法检查、`lint` 20 条） |
-| `expr:` 原型 | ✅ 完成（Python 原型：求值 + 编译期拦截） |
-| Rust 内核 | ✅ 完成（M1–M4：编译器/传输/执行器/脚本表达式，`crates/rsl-core` 27 测试全绿；boa 引擎两档 pure/ctx） |
-| 工具链 | ✅ 完成（M5：CLI 九命令、`rsl test` YAML 用例 9/9、fixture 录制、convert 迁移、文档一致性门禁） |
-| 绑定 | ✅ 完成（M6：C ABI `rsl.h` + Swift RSLKit + Android JNI + WASM `run_stage`；conformance golden 哈希一致） |
-| 编辑器 | ⬜ 未开始（M6 编辑器属 ROADMAP 后续，非任务书范围） |
+| 测试 | `cargo test -p rsl-core` **57 通过**；`--features engine-quickjs` 同套件 **57 通过**（双引擎语义等价） |
+| 模糊测试 | 5 harness；compile_str **60 分钟 / 7,134,278 轮零 panic**（结构化变异 + 语料 1022 文件） |
+| 属性测试 | 8 条铁律 × 1000 case（永不裸空串 / 降级不清空主结果 / severity↔code 全表一致…） |
+| 三端一致性 | golden SHA-256：CLI ↔ WASM 逐字节一致（`tools/conformance.py`） |
+| 真实源压测 | 10,671 源：convert 99.98% 可转换；lint 直通 485 源 |
+| 真实商业 API | 七猫全链路（md5 签名 + AES-CBC 动态 IV），正文页 ≈0.24s |
+| panic 边界 | lib 路径 unwrap/expect 归零 + CLI/LSP 入口 catch_unwind（[审计清单](docs/20261114_A4_panic审计清单.md)） |
+| 门禁 | check（schema+示例+fuzz 报告归档）/ consistency（文档计数）/ conformance（golden）/ expr_proto 四道 CI 门禁 |
+
+内核规模：`rsl-core` 15,745 行 Rust（对比阅读内核 ≈27,400 行 Kotlin，见
+[对比文档 §7](docs/comparison-vs-legado.md#7-稳定性与性能实测数据)）。
 
 ---
 
-## 法律与分发边界
+## 与阅读（Legado）的关系
 
-1. 本仓库**不包含任何书源、内容或站点信息**，示例域名为虚构地址。
+**不兼容，也不打算兼容**——但不对立：
+
+- 规则语言重新设计（字符串 → 数据契约），换取编译期检查与跨端一致；
+- 存量源经 `rsl convert` 一次性迁移，不可转项逐条登记，绝不静默丢弃；
+- 设计上刻意保留的能力差（远程 `jsLib`、`java.*` 不采纳）见
+  [`spec/GAP-AUDIT.md`](spec/GAP-AUDIT.md) A1–A44 决策矩阵。
+
+📖 **[RSL 与阅读（Legado）对比](docs/comparison-vs-legado.md)**——同一任务的两种写法、
+35+ 项能力对照矩阵、失败语义对比、迁移成本与"何时不该换"的诚实清单。
+
+---
+
+## 文档地图（互斥分工）
+
+| # | 文档 | 什么时候读 |
+|---|---|---|
+| 1 | [`spec/CONCEPTS.md`](spec/CONCEPTS.md) | **先读这个**——10 个"为什么这么设计" |
+| 2 | [`spec/PATTERNS.md`](spec/PATTERNS.md) | 写源时查——任务配方（搜索/目录/正文/分页/登录） |
+| 3 | [`spec/REFERENCE.md`](spec/REFERENCE.md) | 查字段——全字段速查 |
+| 4 | [`spec/ERRORS.md`](spec/ERRORS.md) | 报错时查——31 错误码 + 5 警告码的成因与修法 |
+| 5 | [`spec/RSL-1.0.md`](spec/RSL-1.0.md) | 写源 / 实现内核必读——**唯一权威**契约正文 |
+| 6 | [`spec/MIGRATION.md`](spec/MIGRATION.md) | 从 Legado 迁——24 字段映射 + 22 条语法翻译 + 不可转清单 |
+| 7 | [`docs/comparison-vs-legado.md`](docs/comparison-vs-legado.md) | 选型评估——与阅读的全面对比 |
+| 8 | [`spec/COMPILER.md`](spec/COMPILER.md) | 实现者——编译流水线、引用图、类型推断、E_COST |
+| 9 | [`spec/EXPRESSIONS.md`](spec/EXPRESSIONS.md) | 实现者——`expr:` 子语言文法与内置函数 |
+| 10 | [`spec/GAP-AUDIT.md`](spec/GAP-AUDIT.md) | 改规范前——与现网引擎差距矩阵（A1–A44）与取舍 |
+| 11 | [`spec/KERNEL-COMPARE.md`](spec/KERNEL-COMPARE.md) | 关心架构——与阅读内核逐层对比（源码行号证据） |
+| 12 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) / [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) | 派工史——V1 基线（M1–M6）与增强（A/B/C 三方向）任务书 |
+| 13 | [`spec/ROADMAP.md`](spec/ROADMAP.md) | 路线——里程碑与验收口径 |
+| 14 | [`spec/INDUSTRY-RESEARCH.md`](spec/INDUSTRY-RESEARCH.md) | 追溯依据——业界调研原始记录（非规范） |
+| 15 | [`schema/rsl.schema.json`](schema/rsl.schema.json) | 编辑器 / CI——JSON Schema 2020-12（29 `$defs`） |
+| 16 | [`examples/`](examples/) | 五个可校验示例（小说/漫画/登录视频/聚合合并/边界能力） |
+| 17 | [`docs/`](docs/) | 工程记录——审计清单、spike 报告、基准报告、交接文档 |
+
+文档分工互斥：想学 → `CONCEPTS`；想写 → `PATTERNS`；想查 → `REFERENCE`；报错 → `ERRORS`；
+想知道为什么 → `GAP-AUDIT` 与 `KERNEL-COMPARE`；想知道与阅读差在哪 → `comparison-vs-legado`。
+`RSL-1.0.md` 只回答"合不合法、引擎必须怎么做"。
+
+---
+
+## 安全与合规边界
+
+1. 本仓库**不包含任何书源、内容或站点信息**；示例与测试语料全部使用 `example.com` 虚构域名。
 2. 引擎是中立的 HTTP + 解析工具，性质等同 `curl` + 解析库。
 3. 不提供公共服务实例、不做内容聚合、不绕付费墙。
 4. 源由使用者自行编写与导入，合规责任在使用者。
 5. 分发层只发程序，不发源，不发公共实例。
 
-> 背景：Legado 主仓库 2026-05 因侵权被清空，Tachiyomi 扩展体系反复被 DMCA 清洗。架构上内容与软件彻底分离、分发上绝不集中托管源，是这套标准的前提条件，不是可选项。
+> 背景：Legado 主仓库 2026-05 因侵权被清空，Tachiyomi 扩展体系反复被 DMCA 清洗。
+> 架构上内容与软件彻底分离、分发上绝不集中托管源，是这套标准的前提条件，不是可选项。
+
+---
+
+## 贡献
+
+见 [CONTRIBUTING.md](CONTRIBUTING.md)。改动必须通过四道门禁：
+
+```bash
+python tools/check.py               # schema + 示例 + fuzz/基准归档存在性
+python tools/consistency.py         # 文档计数对齐（S↔Z↔E↔R）
+python tools/conformance.py check   # 三端 golden
+cargo test -p rsl-core              # 57 测试（--features engine-quickjs 亦须全绿）
+```
+
+## License
+
+[MIT](LICENSE)
