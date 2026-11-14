@@ -165,6 +165,24 @@ t('M2: vars 增删', () => {
   out = M.applyFormState(DEMO, st);
   if ('vars' in out) throw new Error('清空后 vars 应删除');
 });
+t('M2: vars 对象形 varEntry 保真（label/options/persist 不被 kv 吞）', () => {
+  const doc = {
+    rsl: '2.0', id: 'v.example.com', name: 'v', type: 'novel', baseUrl: 'https://v.example.com',
+    vars: {
+      kw: '斗破',
+      line: { value: 'https://v.example.com', label: '线路', options: ['https://v.example.com'], persist: true },
+    },
+    stages: { search: { request: { url: 'https://v.example.com/s' }, out: { list: 'css:li', map: { name: 'css:a', url: 'css:a' } } },
+      detail: { request: { url: 'var:book.url' }, out: { name: 'css:h1' } },
+      toc: { request: { url: 'var:book.tocUrl' }, out: { list: 'css:li', map: { title: 'css:a', url: 'css:a' } } },
+      content: { request: { url: 'var:chapter.url' }, out: { content: 'css:#c' } } },
+  };
+  const st = M.extractFormState(doc);
+  const out = M.applyFormState(doc, st);
+  eq(out.vars.kw, '斗破');
+  eq(out.vars.line, { value: 'https://v.example.com', label: '线路', options: ['https://v.example.com'], persist: true }, '对象形 varEntry 未编辑必须原样保真');
+});
+
 t('M2: login.webview 契约写入 + 清空回收', () => {
   const st = M.extractFormState(DEMO);
   st['login.type'] = { value: 'webview', present: true };

@@ -391,11 +391,12 @@ function cardFromItem(item) {
   const info = el('div');
   info.style.flex = '1';
   info.appendChild(el('div', 'bc-title', m.name || '（无书名）'));
-  if (m.author) info.appendChild(el('div', 'bc-line', `作者：${m.author}`));
-  if (m.kind) info.appendChild(el('div', 'bc-line', `分类：${m.kind}`));
-  if (m.wordCount) info.appendChild(el('div', 'bc-line', `字数：${m.wordCount}`));
-  if (m.lastChapter) info.appendChild(el('div', 'bc-line', `最新：${m.lastChapter}`));
-  if (m.updateTime) info.appendChild(el('div', 'bc-line', `更新：${m.updateTime}`));
+  const rows = [['作者', m.author], ['分类', m.kind], ['字数', m.wordCount], ['最新', m.lastChapter], ['更新', m.updateTime]];
+  for (const rowkv of rows) {
+    if (rowkv[1] !== undefined && rowkv[1] !== null && String(rowkv[1]) !== '') {
+      info.appendChild(el('div', 'bc-line', rowkv[0] + '：' + rowkv[1]));
+    }
+  }
   if (m.intro) info.appendChild(el('div', 'bc-intro', m.intro));
   card.appendChild(info);
   return card;
@@ -431,10 +432,12 @@ function renderVisualDetail(body, out) {
   }
   const info = el('div');
   info.appendChild(el('h2', 'dp-name', out.name || '（无书名）'));
-  if (out.author) info.appendChild(el('div', 'dp-line', `作者：${out.author}`));
-  if (out.kind) info.appendChild(el('div', 'dp-line', `分类：${out.kind}`));
-  if (out.lastChapter) info.appendChild(el('div', 'dp-line', `最新章节：${out.lastChapter}`));
-  if (out.updateTime) info.appendChild(el('div', 'dp-line', `更新时间：${out.updateTime}`));
+  const rowsD = [['作者', out.author], ['分类', out.kind], ['最新章节', out.lastChapter], ['更新时间', out.updateTime]];
+  for (const rowkv of rowsD) {
+    if (rowkv[1] !== undefined && rowkv[1] !== null && String(rowkv[1]) !== '') {
+      info.appendChild(el('div', 'dp-line', rowkv[0] + '：' + rowkv[1]));
+    }
+  }
   if (out.intro) info.appendChild(el('div', 'dp-intro', out.intro));
   const actions = el('div', 'dp-actions');
   const btn = el('button', 'btn primary', out.tocUrl ? '前往目录 →' : '无目录入口（tocUrl 缺失）');
@@ -531,20 +534,54 @@ function renderChapterView() {
   }
 }
 
+function stageSummary(st, a) {
+  if (!a.ok) return a.error ? '失败：' + a.error.code : '失败';
+  const out = a.out || {};
+  if (st === 'search' || st === 'explore' || st === 'toc') {
+    const l = out.list || [];
+    let sm = '命中 ' + l.length + ' 条';
+    const nm = l[0] && l[0].map && l[0].map.name;
+    if (nm) sm += '，首个：' + nm;
+    return sm;
+  }
+  if (st === 'detail') {
+    if (!out.name) return '已运行';
+    let sm = '《' + out.name + '》';
+    if (out.author) sm += ' ' + out.author;
+    return sm;
+  }
+  if (st === 'content') {
+    const c = out.content;
+    if (Array.isArray(c)) return '正文 ' + c.length + ' 段';
+    if (typeof c === 'string' && c) return '正文 ' + c.length + ' 字';
+    return '已运行';
+  }
+  return '完成';
+}
+
 function refreshChainList() {
   const ol = $('chain-list');
   ol.innerHTML = '';
-  for (const st of ['search', 'detail', 'toc', 'content']) {
-    const li = el('li', hasChainOut(st) ? 'done' : 'empty');
+  const stages = ['search', 'detail', 'toc', 'content', 'explore'];
+  for (const st of stages) {
     const a = state.artifacts[st];
-    const when = a ? `（${a.ok ? '成功' : '失败'} ${a.elapsed_ms}ms）` : '';
-    li.textContent = `${STAGE_LABELS[st]}${when}`;
+    const li = el('li', a ? (a.ok ? 'done' : 'empty') : 'empty');
+    if (a) {
+      const tag = st === 'explore' ? '发现（独立入口）' : STAGE_LABELS[st];
+      li.appendChild(el('div', undefined, tag + '（' + (a.ok ? '成功' : '失败') + ' ' + a.elapsed_ms + 'ms）'));
+      const sm = stageSummary(st, a);
+      if (sm) {
+        const sub = el('div', 'muted small', sm);
+        sub.style.marginLeft = '-14px';
+        li.appendChild(sub);
+      }
+    } else if (st === 'explore') {
+      li.textContent = '发现（独立入口）';
+    } else {
+      li.textContent = STAGE_LABELS[st];
+    }
     ol.appendChild(li);
   }
-  const li2 = el('li', hasChainOut('explore') ? 'done' : 'empty');
-  const a = state.artifacts.explore;
-  li2.textContent = `发现（独立入口${a ? `，${a.ok ? '成功' : '失败'}` : ''}）`;
-  ol.appendChild(li2);
 }
 
 function switchStage(stage) {
@@ -720,7 +757,21 @@ function bind() {
   });
   // ── TASK-BOOK-5：视图/主题/源库/日志事件 ──
   $('vtab-sources').onclick = function () { showView('sources'); };
+  $('vtab-editor').onclick = function () {
+    if (!window.__editorEntry) {
+      const all = Object.values(lsSources()).sort(function (a, b) { return usedAt(b.id) - usedAt(a.id); });
+      if (all.length) window.__editorEntry = all[0];
+    }
+    showView('editor');
+    if (window.__editorEntry && window.webFormEditor) window.webFormEditor.openSourceInEditor(window.__editorEntry);
+  };
   $('vtab-debug').onclick = function () { showView('debug'); };
+  $('ed-debug').onclick = function () {
+    // 编辑→调试：先触发 form 的 apply 写回源库（CustomEvent 同步派发），再带最新 JSON 去调试
+    window.__pendingDebug = true;
+    const b = document.getElementById('btnApply');
+    if (b) b.click();
+  };
   $('btn-theme').onclick = function () { cycleTheme(); };
   $('btn-src-import').onclick = function () {
     const st = importSourcesText($('src-import-text').value);
@@ -769,6 +820,9 @@ async function init() {
   refreshChainList();
   document.querySelectorAll('.stage-tab').forEach((b) => b.classList.toggle('active', b.dataset.stage === 'search'));
   applyTheme();
+  fetch('/lang/schema').then(function (r) { return r.json(); }).then(function (schema) {
+    window.__rslLangSchema = schema;
+  }).catch(function () {});
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
   }
@@ -783,7 +837,6 @@ async function init() {
   }
 }
 
-init();
 
 // ═══════════════ TASK-BOOK-5：主题三层 / 视图切换 / 源库 / 日志 ═══════════════
 
@@ -806,16 +859,25 @@ function cycleTheme() {
   const next = order[(order.indexOf(cur) + 1) % order.length];
   localStorage.setItem(THEME_KEY, next);
   applyTheme();
+  fetch('/lang/schema').then(function (r) { return r.json(); }).then(function (schema) {
+    window.__rslLangSchema = schema;
+  }).catch(function () {});
 }
 
 // ── 视图切换（阅读单页骨架：源库 ↔ 调试器） ──
 function showView(name) {
-  $('view-sources').classList.toggle('hidden', name !== 'sources');
-  $('view-debug').classList.toggle('hidden', name !== 'debug');
-  $('vtab-sources').classList.toggle('active', name === 'sources');
-  $('vtab-debug').classList.toggle('active', name === 'debug');
+  for (const v of ['sources', 'editor', 'debug']) {
+    const elx = $('view-' + v);
+    if (elx) elx.classList.toggle('hidden', name !== v);
+  }
+  for (const v of ['sources', 'editor', 'debug']) {
+    const b = $('vtab-' + v);
+    if (b) b.classList.toggle('active', name === v);
+  }
   if (name === 'sources') renderSources();
+  // 注意：editor 视图初始化由 vtab-editor 点击/源库✎编辑 显式触发（此处触发会无限递归）
 }
+window.appShowView = showView;
 
 // ── T4 源库（localStorage；规则是数据——真源文件仍归用户文件系统） ──
 const SRC_KEY = 'rsl.sources';
@@ -893,8 +955,8 @@ function renderSources() {
     bDebug.title = '载入调试器（编辑缓冲即最新规则，免保存）';
     bDebug.onclick = function () { openSourceInDebug(s); };
     const bEdit = el('button', 'btn small', '✎ 编辑');
-    bEdit.title = '载入左侧源文本区';
-    bEdit.onclick = function () { openSourceInDebug(s, { editOnly: true }); };
+    bEdit.title = '在表单编辑器中打开（浏览器内 编辑↔调试 闭环）';
+    bEdit.onclick = function () { window.__editorEntry = s; window.webFormEditor.openSourceInEditor(s); };
     const bExp = el('button', 'btn small', '⇩ 导出');
     bExp.onclick = function () { exportOne(s); };
     const bDel = el('button', 'btn small', '✕');
@@ -990,6 +1052,8 @@ function buildLogLines() {
       lines.push({ cat: 'diag', t: base, text: '⚠ [' + d.code + '] ' + d.message + '（' + (d.path || '') + '）' });
     }
     if (!a.ok && a.error) lines.push({ cat: 'err', t: base, text: '✖ [' + a.error.code + '] ' + a.error.message });
+    const sm = stageSummary(st, a);
+    if (sm) lines.push({ cat: 'parse', t: n, text: '◇ ' + sm });
     lines.push({ cat: 'stage', t: n, text: '︽ ' + (STAGE_LABELS[st] || st) + ' 阶段' + (a.ok ? '完成' : '失败') });
   }
   return lines;
@@ -1034,3 +1098,14 @@ function exportLogs() {
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
   download('debug-log-' + stamp + '.txt', logTextAll());
 }
+
+// 全局错误表面：编辑台自身的诚实失败（TASK-BOOK-5）
+window.addEventListener("error", function (ev) {
+  const b = document.getElementById("diag-bar");
+  if (!b) return;
+  b.className = "diag-bar";
+  b.classList.remove("hidden");
+  b.textContent = "编辑台错误：" + ev.message + "（" + (ev.filename ? ev.filename.split("/").pop() : "") + ":" + ev.lineno + "）";
+});
+
+init();

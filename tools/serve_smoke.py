@@ -180,6 +180,14 @@ def main():
         d3 = json.loads(body)
         check("编译失败诊断直通", st == 200 and d3.get("ok") is False and (d3.get("error") or {}).get("code"))
 
+        # /debug/lint：只编译诊断（web 表单编辑器实时校验数据源，TASK-BOOK-5）
+        st, body = http("POST", f"{base}/debug/lint", body={"source_text": source_text})
+        d5 = json.loads(body)
+        check("lint HTTP 200 + ok", st == 200 and d5.get("ok") is True, str(st))
+        check("lint diagnostics 是数组", isinstance(d5.get("diagnostics"), list))
+        st, body = http("POST", f"{base}/debug/lint", body={"source_text": '{"rsl": "2.0"'})
+        d6 = json.loads(body)
+        check("lint 编译失败诊断直通", d6.get("ok") is False and len(d6.get("diagnostics") or []) > 0)
         # T7 诚实降级：webview 引擎源 → E_UNSUPPORTED 原样展示（桌面调试器无浏览器渲染）
         webview_src = json.dumps({
             "rsl": "2.0", "id": "wv.example.com", "name": "webview 源", "type": "novel",
@@ -227,6 +235,8 @@ def main():
         check("token 模式公开 schema 豁免", st == 200 and b"rsl-debug/1" in body, str(st))
         st, _ = http("POST", f"{base}/debug/run", body=run_body)
         check("数据面 run 仍强制 token", st == 401, str(st))
+        st, _ = http("POST", f"{base}/debug/lint", body={"source_text": "x"})
+        check("数据面 lint 仍强制 token", st == 401, str(st))
     finally:
         stop(proc)
 

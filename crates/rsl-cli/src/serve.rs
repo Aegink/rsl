@@ -280,11 +280,11 @@ fn handle_conn(stream: &mut TcpStream, state: &ServeState) -> Result<(), std::io
             return Ok(());
         }
     };
-    // token 校验（V4-D11）：**数据面**（health/debug-run）强制；静态壳与公开 schema 豁免——
+    // token 校验（V4-D11）：**数据面**（health/debug-run/debug-lint）强制；静态壳与公开 schema 豁免——
     // 壳内无用户数据，而 iframe 内子资源（css/js）无法携带查询串 token。
     let needs_token = matches!(
         (req.method.as_str(), req.path.as_str()),
-        ("GET", "/health") | ("POST", "/debug/run")
+        ("GET", "/health") | ("POST", "/debug/run") | ("POST", "/debug/lint")
     );
     if needs_token {
         if let Some(token) = &state.token {
@@ -322,7 +322,14 @@ fn handle_conn(stream: &mut TcpStream, state: &ServeState) -> Result<(), std::io
             respond(stream, 200, "application/schema+json; charset=utf-8", schema.as_bytes());
             200
         }
+        // 语言 Schema（公开契约，编辑器表单派生配置用；豁免 token）
+        ("GET", "/lang/schema") => {
+            let schema = include_str!("../../../schema/rsl.schema.json");
+            respond(stream, 200, "application/schema+json; charset=utf-8", schema.as_bytes());
+            200
+        }
         ("POST", "/debug/run") => handle_debug_run(stream, state, &req),
+        ("POST", "/debug/lint") => handle_debug_lint(stream, state, &req),
         ("GET", _) | ("HEAD", _) => {
             let rel: String = if req.path == "/" { "index.html".to_string() } else { req.path.trim_start_matches('/').to_string() };
             match serve_static(stream, state, &rel) {
@@ -381,6 +388,42 @@ fn serve_static(stream: &mut TcpStream, state: &ServeState, rel: &str) -> Option
     };
     respond(stream, 200, ctype, &bytes);
     Some(200)
+}
+
+// ───────────────────────── POST /debug/lint ─────────────────────────
+
+/// 只编译不运行：源文本 → 全部诊断（error+warning）。
+/// web 表单编辑器的实时诊断数据源（TASK-BOOK-5：编辑↔调试同内核，杜绝前端平行校验）。
+fn handle_debug_lint(stream: &mut TcpStream, _state: &ServeState, req: &Req) -> u16 {
+    let body: Value = match serde_json::from_slice(&req.body) {
+        Ok(v) => v,
+        Err(e) => {
+            respond_json(stream, 400, &json!({"error": format!("请求体不是合法 JSON：{e}")}));
+            return 400;
+        }
+    };
+    let Some(source_text) = body["source_text"].as_str() else {
+        respond_json(stream, 400, &json!({"error": "缺少 source_text"}));
+        return 400;
+    };
+    let t0 = std::time::Instant::now();
+    let _guard = _state.run_lock.lock().unwrap_or_else(|e| e.into_inner());
+    let out = analyze::compile_str(source_text);
+    let diags: Vec<Value> = out
+        .diagnostics
+        .iter()
+        .map(|d| serde_json::to_value(d).unwrap_or(Value::Null))
+        .collect();
+    respond_json(
+        stream,
+        200,
+        &json!({
+            "ok": out.source.is_some(),
+            "diagnostics": diags,
+            "elapsed_ms": t0.elapsed().as_millis() as u64,
+        }),
+    );
+    200
 }
 
 // ───────────────────────── POST /debug/run ─────────────────────────

@@ -15,6 +15,7 @@
   </div>
   <nav class="view-switch">
     <button id="vtab-sources" class="view-tab">📚 源库</button>
+    <button id="vtab-editor" class="view-tab">✎ 编辑器</button>
     <button id="vtab-debug" class="view-tab active">🔍 调试器</button>
   </nav>
   <div class="conn">
@@ -50,6 +51,26 @@
     <span id="src-count" class="src-count"></span>
   </div>
   <ul id="src-list" class="src-list"></ul>
+</main>
+
+<!-- ── 编辑器视图（TASK-BOOK-5：浏览器内表单编辑，复用 VS Code 表单三件套） ── -->
+<main id="view-editor" class="hidden" style="flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; background:var(--bg);">
+  <div style="display:flex; gap:10px; align-items:center; padding:8px 16px; background:var(--card); border-bottom:1px solid var(--border); flex:none;">
+    <strong style="color:var(--fg-strong)">✎ 编辑器</strong>
+    <span id="ed-name" style="font-weight:600;"></span>
+    <span id="ed-lint" class="small" style="color:var(--muted);"></span>
+    <span id="ed-status" class="small" style="color:var(--ok);"></span>
+    <span style="flex:1"></span>
+    <button id="ed-debug" class="btn small primary">▶ 调试此源</button>
+  </div>
+  <div id="banner" class="banner"></div>
+  <div id="diags" style="padding:0 16px;"></div>
+  <div id="fields" style="padding:0 16px;"></div>
+  <div id="ed-toolbar">
+    <button id="btnApply">应用到源库</button>
+    <button id="btnGenerate" class="secondary">导出源文件</button>
+    <span class="muted">未建模内容（x- 字段、media、login 细节等）在应用时原样保留。</span>
+  </div>
 </main>
 
 <!-- ── 调试器视图（五阶段 × 四 tab + 日志） ── -->
@@ -152,6 +173,11 @@
   执行唯一在 Rust 内核（本机 rsl serve · 127.0.0.1）；前端只渲染与编排，零解析逻辑。响应体仅内存预览 ≤256KB，不落盘。源库存于浏览器 localStorage。
 </footer>
 
+<!-- 编辑器三件套（TASK-BOOK-5：浏览器内表单编辑；shim 必须在 form.js 之前） -->
+<script src="form/form-web.js"></script>
+<script src="form/form-model.js"></script>
+<script src="form/form.js"></script>
+<script src="form/form-web-host.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

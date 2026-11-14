@@ -353,6 +353,17 @@ function kvPairs(v) {
     .map(([k, val]) => ({ k, v: val }));
 }
 
+/** vars 条目：字符串值正常编辑；对象形 varEntry（label/options/persist，R§4.2）
+ *  不可被 kv 建模吞掉——行内 raw 保真，未编辑时原样回写。 */
+function varEntries(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return [];
+  return Object.entries(v).map(([k, val]) => ({
+    k,
+    v: typeof val === 'string' ? val : JSON.stringify(val),
+    raw: typeof val === 'string' ? null : cloneJson(val),
+  }));
+}
+
 function getPath(doc, path) {
   let cur = doc;
   for (const seg of path.split('.')) {
@@ -501,7 +512,7 @@ function extractFormState(doc) {
     let value = null;
     switch (true) {
       case m.kind === 'kv':
-        value = kvPairs(raw);
+        value = m.path === 'vars' ? varEntries(raw) : kvPairs(raw);
         break;
       case m.kind === 'kvLoginFields':
         value = Array.isArray(raw)
@@ -597,7 +608,11 @@ function applyFormState(doc, state) {
     if (v === null || v === '') { setPath(out, path, undefined); continue; }
     if (path === 'vars' || path === 'http.headers') {
       const obj = {};
-      for (const p of v) { if (p.k) obj[p.k] = p.v; }
+      for (const p of v) {
+        if (!p.k) continue;
+        // 对象形 varEntry 保真（未编辑 raw 原样；改了文本则按字符串写——label/options 编辑走 explore 分区）
+        obj[p.k] = p.raw !== undefined && p.raw !== null ? p.raw : p.v;
+      }
       const keys = Object.keys(obj).length;
       if (keys) setPath(out, path, obj);
       else if (entry.present) setPath(out, path, undefined); // 原有但被清空 → 删；本就无 → 不造
