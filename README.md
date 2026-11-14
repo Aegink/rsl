@@ -235,6 +235,6 @@ cargo test -p rsl-core              # 103 测试（Boa 回退侧亦须全绿）
 
 ## License
 
-[AGPL-3.0-only](LICENSE)（GNU Affero General Public License v3.0，仅此版本）——当前最强 copyleft 开源协议：任何修改版与**网络服务形态**的部署都必须以同协议开源完整源代码。
+[AGPL-3.0-only](LICENSE) · <a href="https://github.com/Aegink/rsl">github.com/Aegink/rsl</a>（GNU Affero General Public License v3.0，仅此版本）——当前最强 copyleft 开源协议：任何修改版与**网络服务形态**的部署都必须以同协议开源完整源代码。
 
 第三方组件与数据归属见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。本项目不含任何真实书源数据（合规立场见 CONTRIBUTING.md）。

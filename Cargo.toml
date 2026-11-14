@@ -12,8 +12,9 @@ members = [
 version = "2.0.0"
 edition = "2021"
 license = "AGPL-3.0-only"
+repository = "https://github.com/Aegink/rsl"
 authors = ["RSL contributors"]
-# repository/homepage：待仓库公开发布时补（见 CONTRIBUTING.md"发布前清单"）——不放编造地址
+# repository 已随开源发布填入（CONTRIBUTING.md"发布前清单"最后一项）
 keywords = ["reader", "book-source", "language", "parser", "cross-platform"]
 categories = ["parsing", "text-processing"]
 
