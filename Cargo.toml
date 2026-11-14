@@ -11,7 +11,7 @@ members = [
 [workspace.package]
 version = "2.0.0"
 edition = "2021"
-license = "MIT"
+license = "AGPL-3.0-only"
 authors = ["RSL contributors"]
 # repository/homepage：待仓库公开发布时补（见 CONTRIBUTING.md"发布前清单"）——不放编造地址
 keywords = ["reader", "book-source", "language", "parser", "cross-platform"]

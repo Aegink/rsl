@@ -4,7 +4,7 @@
 
 **一门"阅读源"的描述语言：用一份 JSON 声明怎么从站点取书，由同一个内核在 CLI / iOS / Android / WASM 上执行。**
 
-`RSL 2.0` · Rust 实现 · MIT License · 与阅读（Legado）不兼容——存量源经一次性转换器迁移
+`RSL 2.0` · Rust 实现 · AGPL-3.0-only（最强 copyleft）· 与阅读（Legado）不兼容——存量源经一次性转换器迁移
 
 [规范](spec/RSL-1.0.md) · [对比阅读](docs/comparison-vs-legado.md) · [迁移手册](spec/MIGRATION.md) · [错误全书](spec/ERRORS.md)
 
@@ -234,4 +234,6 @@ cargo test -p rsl-core              # 57 测试（--features engine-quickjs 亦�
 
 ## License
 
-[MIT](LICENSE)
+[AGPL-3.0-only](LICENSE)（GNU Affero General Public License v3.0，仅此版本）——当前最强 copyleft 开源协议：任何修改版与**网络服务形态**的部署都必须以同协议开源完整源代码。
+
+第三方组件与数据归属见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。本项目不含任何真实书源数据（合规立场见 CONTRIBUTING.md）。

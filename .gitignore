@@ -25,3 +25,7 @@ converted/qimao/
 
 # Python 字节码
 __pycache__/
+
+# 内部会话/交接记录（不开源）
+docs/notes.md
+docs/handoff/

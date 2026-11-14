@@ -2,7 +2,7 @@
 """B4 LSP 冒烟（TASK-BOOK-2 §3.2 B4 五场景 + TASK-BOOK-3 F2 场景 6）。
 
 裸 JSON-RPC over stdio 模拟编辑器：
-  initialize → didOpen(七猫草稿) → diagnostics(≤3s) → hover(var:book.id)
+  initialize → didOpen(内置 fixture) → diagnostics(≤3s) → hover(var:book.url)
   → completion(18 命名空间) → definition(var:chapter.url)
   → codeAction(var:book.urll 笔误 → E_REF fix → 应用 → 诊断消失)
 
@@ -18,12 +18,13 @@ import time
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 CLI = "target/debug/rsl-lsp.exe"
-DOC = "本地语料（不入库）"
+# 内置 fixture（示例域，S§17 合规；真实站点调试样本在本地不入库）
+DOC = "examples/novel-html.rsl.json"
 
 try:
     text = open(DOC, encoding="utf-8").read()
 except OSError as e:
-    print(f"!! 打开 {DOC} 失败: {e}（七猫源在本地但不入库）")
+    print(f"!! 打开 {DOC} 失败: {e}")
     sys.exit(2)
 
 # 场景 6 fixture：var:book.urll 笔误（detail 引用 search 契约字段 url 的拼写错误）
@@ -139,11 +140,11 @@ send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
 # 2) didOpen → diagnostics ≤3s（场景 1）
 t0 = time.time()
 send({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
-    "textDocument": {"uri": "file:///qimao.json", "languageId": "json",
+    "textDocument": {"uri": "file:///fixture.json", "languageId": "json",
                      "version": 1, "text": text}}})
 diag = wait_for(
     lambda n: n.get("method") == "textDocument/publishDiagnostics"
-    and n["params"]["uri"] == "file:///qimao.json",
+    and n["params"]["uri"] == "file:///fixture.json",
     3.0)
 dt = time.time() - t0
 results["diagnostics≤3s"] = bool(diag) and dt <= 3.0
@@ -153,7 +154,7 @@ results["diagnostics_seconds"] = round(dt, 2)
 # 3) hover var:book.id（场景 3：显示来源契约）
 pos = find_pos(text, "var:book.id") or find_pos(text, "var:book.url")
 send({"jsonrpc": "2.0", "id": 2, "method": "textDocument/hover", "params": {
-    "textDocument": {"uri": "file:///qimao.json"}, "position": pos}})
+    "textDocument": {"uri": "file:///fixture.json"}, "position": pos}})
 hov = wait_for(lambda n: n.get("id") == 2, 5)
 hov_val = (hov or {}).get("result") or {}
 hov_md = ""
@@ -165,7 +166,7 @@ results["hover_text"] = hov_md[:120]
 # 4) completion 裸选择器 → 18 命名空间（场景 4）
 pos2 = find_pos(text, "\"$\"")
 send({"jsonrpc": "2.0", "id": 3, "method": "textDocument/completion", "params": {
-    "textDocument": {"uri": "file:///qimao.json"}, "position": pos2}})
+    "textDocument": {"uri": "file:///fixture.json"}, "position": pos2}})
 comp = wait_for(lambda n: n.get("id") == 3, 5)
 items = (comp or {}).get("result", [])
 if isinstance(items, dict):
@@ -177,7 +178,7 @@ results["completion_18"] = results["completion_namespaces"] >= 15
 # 5) definition var:chapter.url → 定位声明（场景 5；带引号搜独立 token，避开 expr 内引用）
 pos3 = find_pos(text, '"var:chapter.url"')
 send({"jsonrpc": "2.0", "id": 4, "method": "textDocument/definition", "params": {
-    "textDocument": {"uri": "file:///qimao.json"}, "position": pos3}})
+    "textDocument": {"uri": "file:///fixture.json"}, "position": pos3}})
 defn = wait_for(lambda n: n.get("id") == 4, 5)
 dres = (defn or {}).get("result")
 ok_def = bool(dres) and (isinstance(dres, dict) or (isinstance(dres, list) and dres))

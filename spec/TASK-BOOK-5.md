@@ -61,10 +61,10 @@ tags: [rsl, taskbook, v5, editor, debugger, logs, dark-mode, sources, qimao]
 - 美化：卡片阴影/圆角统一、按钮层级（primary/普通/图标）、表格斑马纹、滚动条样式。
 
 ## 2. 七猫真实站点 L3（用户诉求 7）—— ✅ 本轮已完成（记录）
-- 用户源 `D:\下载\[书源]⭐七猫小说[官方]v3.9.85✨.json`（不入库）→ `scratch/_qimao/qimao.legado.json`。
+- 用户源 用户提供的本地 Legado 源文件（不入库）→ `scratch/_qimao/qimao.legado.json`。
 - convert 诚实上报 15 项需人工（@js: 签名/68KB 动态发现/@put 链步）——符合 MIGRATION 语义。
 - **手工重写 `scratch/_qimao/qimao.rsl.json`**（不入库，S§17）：签名=md5(排序拼接+key) 全 expr:md5 表达（params 排序即 BTreeMap 序）；
-  正文 AES-128-CBC（key <AES_KEY>，IV=base64解码前16字节）经 script.onResponse（ctx 档）+ b64hex 桥解密。
+  正文 AES-128-CBC（key <站点正文密钥（不入库）>，IV=base64解码前16字节）经 script.onResponse（ctx 档）+ b64hex 桥解密。
 - **内核通用修复**（非站点妥协，用户红线）：
   1. `crypto_sym` JS 桥回归：V2 用 `serde_json::to_string(&Value)` 包一切 → JS 侧拿到带引号 base64（Boa 时代 json_to_js 无此问题）→ `value_to_bridge_string`（String 直传）——任何源受益。
   2. sym 输入支持 `hex:` 前缀（通用编码入口，二进制切片场景通用）。

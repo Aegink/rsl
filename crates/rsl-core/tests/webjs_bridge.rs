@@ -154,7 +154,7 @@ fn c2_string_form_request_flag_false() {
     assert!(!ctx, "自由 JS 形态不得携带桥标志");
 }
 
-// ─────────────── 七猫 L3 复测暴露的桥回归锁定（V4 通用修复） ───────────────
+// ─────────────── 真实站点复测暴露的桥回归锁定（V4 通用修复） ───────────────
 
 /// crypto.sym 的 JS 桥必须返回**纯字符串**（不带 JSON 引号）——V2 曾用
 /// serde_json::to_string 包装 Value，使 base64 结果在 JS 侧带引号，
@@ -183,14 +183,14 @@ fn ctx_sym_bridge_returns_plain_string() {
     let host = rsl_core::exec::hosts::CtxHost { cx: &mut cx };
 
     // AES-CBC key=16 字节，iv=16 字节（hex: 前缀路径）
-    let plain = "七猫正文测试文本0123456789"; // 多块
+    let plain = "加密正文测试文本0123456789"; // 多块
     let enc = host
-        .crypto_symmetric("aes-cbc", "encrypt", "<AES_KEY>", "hex:0123456789abcdef0123456789abcdef", plain)
+        .crypto_symmetric("aes-cbc", "encrypt", "0011223344556677", "hex:0123456789abcdef0123456789abcdef", plain)
         .expect("加密成功");
     let enc_str = enc.as_str().expect("sym 结果必须是字符串——桥不得包 JSON 引号");
     assert!(!enc_str.starts_with('"'), "sym 桥不得返回带引号字符串: {enc_str}");
     let dec = host
-        .crypto_symmetric("aes-cbc", "decrypt", "<AES_KEY>", "hex:0123456789abcdef0123456789abcdef", enc_str)
+        .crypto_symmetric("aes-cbc", "decrypt", "0011223344556677", "hex:0123456789abcdef0123456789abcdef", enc_str)
         .expect("解密成功");
     let dec_str = dec.as_str().expect("解密结果必须是字符串");
     // decrypt 输出 base64（桥约定），还原文本需再解码——这里只锁定“无引号”回归
@@ -198,7 +198,7 @@ fn ctx_sym_bridge_returns_plain_string() {
 }
 
 /// b64hex / b64utf8 工具（base64_to_hex / base64_to_utf8）——
-/// 二进制以 hex 安全字符串穿越 JS 边界（七猫正文 IV 派生场景）。
+/// 二进制以 hex 安全字符串穿越 JS 边界（正文解密 IV 派生场景）。
 #[test]
 fn base64_tools_roundtrip() {
     let b64 = "NDcxNTkwMDA3OTgzNjU5Nw=="; // "4715900079836597"
