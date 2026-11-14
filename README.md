@@ -191,7 +191,7 @@ JS 引擎经 `ScriptEngine` 端口注入：native 默认 QuickJS（基准 QuickJ
 | 9 | [`spec/EXPRESSIONS.md`](spec/EXPRESSIONS.md) | 实现者——`expr:` 子语言文法与内置函数 |
 | 10 | [`spec/GAP-AUDIT.md`](spec/GAP-AUDIT.md) | 改规范前——与现网引擎差距矩阵（A1–A44）与取舍 |
 | 11 | [`spec/KERNEL-COMPARE.md`](spec/KERNEL-COMPARE.md) | 关心架构——与阅读内核逐层对比（源码行号证据） |
-| 12 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) / [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) / [`spec/TASK-BOOK-3.md`](spec/TASK-BOOK-3.md) | 派工史——V1 基线（M1–M6）、V2 增强（A/B/C 三方向）、V3 增补（登录会话/机械重登/编辑器/受控远程/修复建议） |
+| 12 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) / [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) / [`spec/TASK-BOOK-3.md`](spec/TASK-BOOK-3.md) / [`spec/TASK-BOOK-4.md`](spec/TASK-BOOK-4.md) | 派工史——V1 基线（M1–M6）、V2 增强（A/B/C 三方向）、V3 增补（登录会话/机械重登/编辑器/受控远程/修复建议）、V4 编辑+调试（五页面调试器/rsl serve/三宿主/explore 编辑露出，Draft） |
 | 13 | [`spec/ROADMAP.md`](spec/ROADMAP.md) | 路线——里程碑与验收口径 |
 | 14 | [`spec/INDUSTRY-RESEARCH.md`](spec/INDUSTRY-RESEARCH.md) | 追溯依据——业界调研原始记录（非规范） |
 | 15 | [`schema/rsl.schema.json`](schema/rsl.schema.json) | 编辑器 / CI——JSON Schema 2020-12（29 `$defs`） |
