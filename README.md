@@ -186,7 +186,7 @@ JS 引擎经 `ScriptEngine` 端口注入：默认 Boa（全平台一致），nat
 | 9 | [`spec/EXPRESSIONS.md`](spec/EXPRESSIONS.md) | 实现者——`expr:` 子语言文法与内置函数 |
 | 10 | [`spec/GAP-AUDIT.md`](spec/GAP-AUDIT.md) | 改规范前——与现网引擎差距矩阵（A1–A44）与取舍 |
 | 11 | [`spec/KERNEL-COMPARE.md`](spec/KERNEL-COMPARE.md) | 关心架构——与阅读内核逐层对比（源码行号证据） |
-| 12 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) / [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) | 派工史——V1 基线（M1–M6）与增强（A/B/C 三方向）任务书 |
+| 12 | [`spec/TASK-BOOK.md`](spec/TASK-BOOK.md) / [`spec/TASK-BOOK-2.md`](spec/TASK-BOOK-2.md) / [`spec/TASK-BOOK-3.md`](spec/TASK-BOOK-3.md) | 派工史——V1 基线（M1–M6）、V2 增强（A/B/C 三方向）、V3 增补（登录会话/机械重登/编辑器/受控远程/修复建议） |
 | 13 | [`spec/ROADMAP.md`](spec/ROADMAP.md) | 路线——里程碑与验收口径 |
 | 14 | [`spec/INDUSTRY-RESEARCH.md`](spec/INDUSTRY-RESEARCH.md) | 追溯依据——业界调研原始记录（非规范） |
 | 15 | [`schema/rsl.schema.json`](schema/rsl.schema.json) | 编辑器 / CI——JSON Schema 2020-12（29 `$defs`） |
