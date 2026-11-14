@@ -28,6 +28,7 @@ pub fn cmd_serve(rest: &[String]) -> i32 {
     let mut token: Option<String> = None;
     let mut web: Option<PathBuf> = None;
     let mut bind: Option<String> = None;
+    let mut watch: Option<PathBuf> = None;
     let mut i = 0;
     while i < rest.len() {
         match rest[i].as_str() {
@@ -53,8 +54,14 @@ pub fn cmd_serve(rest: &[String]) -> i32 {
                 bind = rest.get(i + 1).cloned();
                 i += 2;
             }
+            // T5 独立模式：notify 文件监听（变化仅记生命周期日志——serve 无状态（V4-D3），
+            // 编辑缓冲仍由编辑端推送；推送通道（WS/SSE）归 P2 演进
+            "--watch" => {
+                watch = rest.get(i + 1).map(PathBuf::from);
+                i += 2;
+            }
             other => {
-                eprintln!("未知参数 {other}；用法：rsl serve [--port N] [--token t] [--web dir] [--bind 127.0.0.1]");
+                eprintln!("未知参数 {other}；用法：rsl serve [--port N] [--token t] [--web dir] [--bind 127.0.0.1] [--watch src]");
                 return 2;
             }
         }
@@ -82,13 +89,30 @@ pub fn cmd_serve(rest: &[String]) -> i32 {
         run_lock: Mutex::new(()),
     });
     println!(
-        "RSL_SERVE listening={addr} token={} web={} pid={}",
+        "RSL_SERVE listening={addr} token={} web={} watch={} pid={}",
         if state.token.is_some() { "SET" } else { "NO" },
         state.web.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "-".into()),
+        watch.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "-".into()),
         std::process::id(),
     );
     use std::io::Write as _;
     let _ = std::io::stdout().flush();
+    // T5 独立模式文件监听（notify 7，沿 test --watch 先例）：变化 → 生命周期日志
+    if let Some(wpath) = watch {
+        std::thread::spawn(move || {
+            use notify::Watcher;
+            let (tx, rx) = std::sync::mpsc::channel();
+            let Ok(mut watcher) = notify::recommended_watcher(tx) else { return };
+            let dir = wpath.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."));
+            if watcher.watch(&dir, notify::RecursiveMode::NonRecursive).is_err() {
+                return;
+            }
+            for _ in rx {
+                println!("[serve] 源文件已变更：{}（编辑端拉最新文本重跑）", wpath.display());
+                let _ = std::io::stdout().flush();
+            }
+        });
+    }
     for stream in listener.incoming() {
         let Ok(mut stream) = stream else { continue };
         let state = Arc::clone(&state);

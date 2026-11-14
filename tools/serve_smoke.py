@@ -179,6 +179,31 @@ def main():
         st, body = http("POST", f"{base}/debug/run", body=bad_src)
         d3 = json.loads(body)
         check("编译失败诊断直通", st == 200 and d3.get("ok") is False and (d3.get("error") or {}).get("code"))
+
+        # T7 诚实降级：webview 引擎源 → E_UNSUPPORTED 原样展示（桌面调试器无浏览器渲染）
+        webview_src = json.dumps({
+            "rsl": "2.0", "id": "wv.example.com", "name": "webview 源", "type": "novel",
+            "baseUrl": "https://wv.example.com",
+            "requires": {"features": ["webview"], "crypto": []},
+            "stages": {
+                "search": {"request": {"url": "https://wv.example.com/s", "engine": "webview"},
+                           "out": {"list": "css:li", "map": {"name": "css:a", "url": "css:a"}}},
+                "detail": {"request": {"url": "var:book.url"}, "out": {"name": "css:h1"}},
+                "toc": {"request": {"url": "var:book.tocUrl"}, "out": {"list": "css:li", "map": {"title": "css:a", "url": "css:a"}}},
+                "content": {"request": {"url": "var:chapter.url"}, "out": {"content": "css:#c"}},
+            },
+        }, ensure_ascii=False)
+        st, body = http("POST", f"{base}/debug/run", body={
+            "source_text": webview_src, "stage": "search", "label": "smoke-wv",
+            "inputs": {"kw": "x"},
+        })
+        d4 = json.loads(body)
+        check("webview 源 ok=false", st == 200 and d4.get("ok") is False, f"{st} {str(d4.get('error'))[:120]}")
+        check("E_UNSUPPORTED 原样直通", (d4.get("error") or {}).get("code") == "EUnsupported",
+              str(d4.get("error"))[:120])
+        check("E_UNSUPPORTED 产物仍带四数据面结构",
+              isinstance(d4.get("trace"), list) and isinstance(d4.get("diagnostics"), list)
+              and "requests" in d4)
     finally:
         stop(proc)
 
@@ -202,6 +227,30 @@ def main():
         check("token 模式公开 schema 豁免", st == 200 and b"rsl-debug/1" in body, str(st))
         st, _ = http("POST", f"{base}/debug/run", body=run_body)
         check("数据面 run 仍强制 token", st == 401, str(st))
+    finally:
+        stop(proc)
+
+    # ── 3.5) --watch 文件监听（T5 独立模式：变化 → 生命周期日志） ──
+    watch_src = ROOT / "scratch/_tmp_watch/src.rsl.json"
+    watch_src.parent.mkdir(parents=True, exist_ok=True)
+    watch_src.write_text('{"rsl": "2.0"}', encoding="utf-8")
+    proc, base = start_serve(["--watch", str(watch_src)])
+    try:
+        time.sleep(0.5)
+        watch_src.write_text('{"rsl": "2.0", "changed": true}', encoding="utf-8")
+        # 读监听行（stdout 继续持有；最多等 6s）
+        line = None
+        deadline = time.time() + 6
+        while time.time() < deadline:
+            pos = proc.stdout.tell() if hasattr(proc.stdout, "tell") else None
+            raw = proc.stdout.readline()
+            if not raw:
+                time.sleep(0.3)
+                continue
+            if "源文件已变更" in raw:
+                line = raw.strip()
+                break
+        check("--watch 文件变更日志", line is not None and "src.rsl.json" in (line or ""), str(line))
     finally:
         stop(proc)
 
