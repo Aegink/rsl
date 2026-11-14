@@ -154,6 +154,19 @@ impl fmt::Display for Severity {
     }
 }
 
+/// 机器可应用修复建议（TASK-BOOK-3 F1，对齐 rustc machine-applicable suggestion）。
+/// V3-D8 只做确定性类：在源文档中把首个 `find` 精确替换为 `replacement`——
+/// 有效性由"应用后编译通过"测试锁定；启发式修复不进本结构。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Fix {
+    /// 待替换的精确原文片段（如 `cs:`、`var:book.urll`）。
+    pub find: String,
+    /// 替换文本（如 `css:`、`var:book.url`）。
+    pub replacement: String,
+    /// 建议说明（如"最近似命名空间 css"）。
+    pub message: String,
+}
+
 /// 结构化诊断对象（规范 §11 错误模型）。永不返回裸空串。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Diagnostic {
@@ -177,6 +190,9 @@ pub struct Diagnostic {
     /// 运行期部分结果标记（E_CANCELLED 等）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub partial: Option<bool>,
+    /// 确定性修复建议（仅 E_REF/E_SELECTOR 两类产出，F1）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fix: Option<Fix>,
 }
 
 impl Diagnostic {
@@ -193,7 +209,18 @@ impl Diagnostic {
             degraded: None,
             retryable: None,
             partial: None,
+            fix: None,
         }
+    }
+
+    /// 附带确定性修复建议（F1）。
+    pub fn fix(mut self, find: impl Into<String>, replacement: impl Into<String>, message: impl Into<String>) -> Self {
+        self.fix = Some(Fix {
+            find: find.into(),
+            replacement: replacement.into(),
+            message: message.into(),
+        });
+        self
     }
 
     pub fn stage(mut self, stage: impl Into<String>) -> Self {
@@ -240,6 +267,18 @@ impl Diagnostic {
             for sec in secrets {
                 if !sec.is_empty() && r.contains(sec.as_str()) {
                     *r = r.replace(sec.as_str(), "****");
+                }
+            }
+        }
+        if let Some(fx) = &mut self.fix {
+            for sec in secrets {
+                if !sec.is_empty() {
+                    if fx.find.contains(sec.as_str()) {
+                        fx.find = fx.find.replace(sec.as_str(), "****");
+                    }
+                    if fx.message.contains(sec.as_str()) {
+                        fx.message = fx.message.replace(sec.as_str(), "****");
+                    }
                 }
             }
         }

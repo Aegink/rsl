@@ -2,7 +2,7 @@
 """T5.7 文档一致性门禁：S↔Z↔E↔R 四处计数与字段名对齐（TASK-BOOK §5.6）。
 
 检查项：
-1. Schema $defs 数 = 29（S/任务书声称）
+1. Schema $defs 数 = 32（S/任务书声称；TASK-BOOK-3 V3-D10：+loginWebview +loginRelogin +webJs）
 2. 错误码全集：ERRORS §1.1 表（30 行）+ §1.2 警告（5）= 35，与 RSL-1.0 §11.1/§11.2 一致
 3. 管道步骤 31 键：RSL-1.0 §3.6 ↔ REFERENCE §5 ↔ Schema transformStep.properties
 4. 命名空间 18 个：RSL-1.0 §3.2 ↔ REFERENCE §4
@@ -33,10 +33,10 @@ def read(p):
     return (ROOT / p).read_text(encoding="utf-8")
 
 
-# ── 1. Schema $defs = 29 ──
+# ── 1. Schema $defs = 32 ──
 schema = json.loads(read("schema/rsl.schema.json"))
 defs = schema.get("$defs", {})
-check("Schema $defs = 29", len(defs) == 29, f"实际 {len(defs)}")
+check("Schema $defs = 32", len(defs) == 32, f"实际 {len(defs)}")
 
 # ── 2. 错误码表对齐 ──
 errors_md = read("spec/ERRORS.md")
@@ -119,6 +119,14 @@ for ex in (ROOT / "examples").glob("*.rsl.json"):
             check(f"示例 {ex.name} 缺阶段 {req_stage}", False)
     if "search" not in st and "explore" not in st:
         check(f"示例 {ex.name} 缺入口阶段", False)
+
+# ── 8. F3 门禁：ERRORS-MESSAGES.md 覆盖 error.rs 全部 36 码（TASK-BOOK-3）──
+err_rs = (ROOT / "crates/rsl-core/src/error.rs").read_text(encoding="utf-8")
+codes = re.findall(r'Code::\w+ => "([EW]_[A-Z_]+)"', err_rs)
+msgs = (ROOT / "spec/ERRORS-MESSAGES.md").read_text(encoding="utf-8")
+missing = [c for c in codes if f"| `{c}`" not in msgs]
+check("文案表 36 码全覆盖", not missing, f"缺 {missing}")
+check("文案表码数 = error.rs 码数", len(codes) == 36, f"error.rs 提取 {len(codes)} 码（应 36）")
 
 print()
 if FAILS:

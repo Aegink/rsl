@@ -90,7 +90,8 @@ pub fn run_stage(
 
     // requiresLogin → check（T3.9 / S§4.5.3）
     if stage.requires_login || (is_host && stage.requires_login) {
-        login::ensure_login(src, cx, inputs)?;
+        // B2：带机械重登包装（relogin.max=0 时行为与原 ensure_login 逐字节一致）
+        login::ensure_login_with_relogin(src, cx, inputs)?;
     } else if src.login.is_some() && login::login_needed_for(src, stage_name) {
         // 五阶段中声明了 token:/cookie: 依赖的阶段在 check 失败时 → E_LOGIN_REQUIRED
         login::ensure_login(src, cx, inputs)?;
@@ -621,7 +622,7 @@ pub fn send_request(
     match req.engine.as_str() {
         "webview" => {
             let port = cx.webview.ok_or_else(|| crate::webview::unsupported(&format!("{path}.engine")))?;
-            let r = crate::webview::render(port, &http_req.url, &http_req.headers, req.web_js.as_deref(), req.sniff.as_deref(), timeout)?;
+            let r = crate::webview::render(port, &http_req.url, &http_req.headers, req.web_js.as_ref(), req.sniff.as_deref(), timeout)?;
             // sniff 产出 var:sniffed
             if !r.sniffed.is_empty() {
                 cx.vars.insert("sniffed".into(), json!(r.sniffed));
@@ -1071,7 +1072,7 @@ fn fetch_with_request(
                 }
                 let (text, _, _) = encoding_rs::UTF_8.decode(&r.body);
                 if let crate::webview::EngineDecision::WebView = crate::webview::decide_auto(Some(up), Some(&text)) {
-                    let wr = crate::webview::render(port, &rendered_url, &[], req.web_js.as_deref(), req.sniff.as_deref(), req.timeout.unwrap_or(src.limits.timeout_ms))?;
+                    let wr = crate::webview::render(port, &rendered_url, &[], req.web_js.as_ref(), req.sniff.as_deref(), req.timeout.unwrap_or(src.limits.timeout_ms))?;
                     if !wr.sniffed.is_empty() {
                         cx.vars.insert("sniffed".into(), json!(wr.sniffed));
                     }

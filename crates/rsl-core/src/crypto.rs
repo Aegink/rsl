@@ -214,6 +214,12 @@ pub fn base64_encode(data: &[u8]) -> String {
     b64().encode(data)
 }
 
+/// SHA-256 → 小写 hex（build manifest / x-jslib 校验用，E1/E2）。
+pub fn sha256_hex(data: &[u8]) -> String {
+    use sha2::Digest;
+    hex::encode(sha2::Sha256::digest(data))
+}
+
 pub fn base64_decode(s: &str) -> Result<Vec<u8>, Diagnostic> {
     b64().decode(s.trim()).map_err(|e| {
         Diagnostic::new(

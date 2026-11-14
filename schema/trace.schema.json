@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rsl-trace/1",
+  "title": "RSL trace JSON（rsl run --trace-json 产物，TASK-BOOK-3 D2）",
+  "description": "H4 稳定性承诺：版本字段 rsl-trace/1 冻结；仅允许追加可选字段，不重命名不删除。宿主调试面板据此消费。",
+  "type": "object",
+  "required": ["schema", "source", "stage", "ok", "trace"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "rsl-trace/1"
+    },
+    "source": {
+      "type": "string",
+      "description": "源文件路径（按命令行原样）"
+    },
+    "stage": {
+      "type": "string",
+      "description": "被执行的阶段名"
+    },
+    "ok": {
+      "type": "boolean",
+      "description": "阶段是否成功（失败时 error 必存在）"
+    },
+    "elapsed_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "阶段总耗时（毫秒，实测值不保证跨机一致）"
+    },
+    "trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stage", "step", "rule", "matched", "ms", "bridge"],
+        "additionalProperties": false,
+        "properties": {
+          "stage": { "type": "string" },
+          "step": { "type": "string" },
+          "rule": { "type": "string" },
+          "matched": { "type": "integer", "minimum": 0 },
+          "ms": { "type": "integer", "minimum": 0 },
+          "bridge": { "type": "integer", "minimum": 0 },
+          "sample": { "type": "string" }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "运行期警告（Diagnostic 全结构）",
+      "items": { "$ref": "#/$defs/diagnostic" }
+    },
+    "error": {
+      "$ref": "#/$defs/diagnostic",
+      "description": "阶段失败时的诊断（ok=false 时必存在）"
+    }
+  },
+  "$defs": {
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "severity", "path", "message", "hint"],
+      "properties": {
+        "code": { "type": "string", "description": "诊断码（serde 枚举形如 ERef/WBudgetTruncated；人类可读映射见 ERRORS.md §1）" },
+        "severity": { "enum": ["Error", "Warning", "Info"] },
+        "stage": { "type": "string" },
+        "path": { "type": "string" },
+        "rule": { "type": "string" },
+        "message": { "type": "string" },
+        "hint": { "type": "string" },
+        "sample": { "type": "string" },
+        "degraded": { "type": "boolean" },
+        "retryable": { "type": "boolean" },
+        "partial": { "type": "boolean" },
+        "fix": {
+          "type": "object",
+          "required": ["find", "replacement", "message"],
+          "properties": {
+            "find": { "type": "string" },
+            "replacement": { "type": "string" },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

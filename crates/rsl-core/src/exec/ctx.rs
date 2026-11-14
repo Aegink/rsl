@@ -40,6 +40,8 @@ pub struct ExecCx<'a> {
     /// 命名缓存条目的落盘值（cache.name → take 结果）。
     pub transport: &'a dyn Transport,
     pub webview: Option<&'a dyn WebViewPort>,
+    /// 交互式登录会话（TASK-BOOK-3 A1；未注入时 login.type=webview → E_UNSUPPORTED）。
+    pub login_session: Option<&'a dyn LoginSessionPort>,
     pub cookie_store: Option<&'a dyn CookieStore>,
     /// 隔离键（源 id + 域名 + 登录名）。
     pub cookie_scope: String,
@@ -75,6 +77,7 @@ impl<'a> ExecCx<'a> {
             cache: RefCell::new(HashMap::new()),
             transport,
             webview: None,
+            login_session: None,
             cookie_store: None,
             cookie_scope: src.id.clone(),
             clock,

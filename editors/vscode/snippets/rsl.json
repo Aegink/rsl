@@ -1,0 +1,137 @@
+{
+  "RSL 源骨架（五阶段完整）": {
+    "prefix": "rsl-source",
+    "body": [
+      "{",
+      "  \"rsl\": \"2.0\", \"id\": \"${1:id}.example.com\", \"name\": \"${2:源名}\", \"type\": \"${3|novel,comic,video|}\",",
+      "  \"baseUrl\": \"https://${1:id}.example.com\",",
+      "  \"requires\": { \"features\": [], \"crypto\": [] },",
+      "  \"vars\": { \"kw\": \"\" },",
+      "  \"stages\": {",
+      "    \"search\": {",
+      "      \"request\": { \"url\": \"https://${1:id}.example.com/search\", \"params\": { \"q\": \"var:kw\" } },",
+      "      \"out\": {",
+      "        \"list\": \"${4|css:,json:|}${5:ul.list li}\",",
+      "        \"map\": {",
+      "          \"name\": { \"\\$\": \"${6|css:,json:|}${7:a.title}\", \"transform\": [{ \"trim\": true }] },",
+      "          \"url\": { \"\\$\": \"${6|css:,json:|}${8:a.title}\", \"attr\": \"href\", \"transform\": [{ \"absolute\": true }] }",
+      "        },",
+      "        \"emptyOk\": true",
+      "      }",
+      "    },",
+      "    \"detail\": {",
+      "      \"request\": { \"url\": \"var:book.url\" },",
+      "      \"out\": { \"name\": \"css:h1\", \"tocUrl\": { \"\\$\": \"css:a.read\", \"attr\": \"href\", \"transform\": [{ \"absolute\": true }], \"optional\": true } }",
+      "    },",
+      "    \"toc\": {",
+      "      \"request\": { \"url\": \"var:book.tocUrl\" },",
+      "      \"out\": { \"list\": \"css:#list li\", \"map\": {",
+      "        \"title\": { \"\\$\": \"css:a\", \"transform\": [{ \"trim\": true }] },",
+      "        \"url\": { \"\\$\": \"css:a\", \"attr\": \"href\", \"transform\": [{ \"absolute\": true }] }",
+      "      } }",
+      "    },",
+      "    \"content\": {",
+      "      \"request\": { \"url\": \"var:chapter.url\" },",
+      "      \"out\": { \"content\": { \"\\$\": \"css:div#content\", \"paragraphs\": { \"split\": \"${9|br,block,auto,line|}\" } } }",
+      "    }",
+      "  }",
+      "}"
+    ],
+    "description": "五阶段完整源骨架（过 lint）"
+  },
+  "RSL 分页（下一页 URL）": {
+    "prefix": "rsl-paginate",
+    "body": [
+      "\"paginate\": {",
+      "  \"next\": { \"\\$\": \"css:a.next\", \"attr\": \"href\", \"transform\": [{ \"absolute\": true }] },",
+      "  \"max\": ${1:10},",
+      "  \"stop\": { \"empty\": \"${2|true,false|}\" }",
+      "}"
+    ],
+    "description": "分页四模式之 next URL"
+  },
+  "RSL 分页（页码步进）": {
+    "prefix": "rsl-page-step",
+    "body": [
+      "\"paginate\": {",
+      "  \"step\": { \"param\": \"page\", \"from\": 1, \"to\": ${1:10} },",
+      "  \"max\": ${1:10}",
+      "}"
+    ],
+    "description": "分页四模式之页码步进"
+  },
+  "RSL 登录（单步表单）": {
+    "prefix": "rsl-login",
+    "body": [
+      "\"login\": {",
+      "  \"type\": \"form\",",
+      "  \"fields\": [",
+      "    { \"key\": \"username\", \"label\": \"账号\" },",
+      "    { \"key\": \"password\", \"label\": \"密码\", \"secret\": true }",
+      "  ],",
+      "  \"submit\": {",
+      "    \"request\": { \"url\": \"https://${1:host}/login\", \"method\": \"POST\", \"body\": { \"data\": { \"user\": \"var:login.username\", \"pass\": \"var:login.password\" } } },",
+      "    \"ok\": \"json:\\$.success\"",
+      "  },",
+      "  \"check\": {",
+      "    \"request\": { \"url\": \"https://${1:host}/user/info\" },",
+      "    \"ok\": \"json:\\$.user.id\"",
+      "  }",
+      "}"
+    ],
+    "description": "单步表单登录 + check 判定"
+  },
+  "RSL 登录（WebView 会话）": {
+    "prefix": "rsl-login-webview",
+    "body": [
+      "\"login\": {",
+      "  \"type\": \"webview\",",
+      "  \"webview\": {",
+      "    \"entry\": \"https://${1:host}/login\",",
+      "    \"success\": \"css:div.user-avatar\"",
+      "  },",
+      "  \"check\": {",
+      "    \"request\": { \"url\": \"https://${1:host}/user/info\" },",
+      "    \"ok\": \"json:\\$.user.id\"",
+      "  },",
+      "  \"relogin\": { \"max\": 1 }",
+      "}"
+    ],
+    "description": "WebView 交互登录（A2 契约）+ 机械重登（B1）"
+  },
+  "RSL 合并块": {
+    "prefix": "rsl-merge",
+    "body": [
+      "\"merge\": {",
+      "  \"key\": [\"name\"],",
+      "  \"normalize\": [\"name\", \"url\"],",
+      "  \"order\": [\"${1:host-a}\", \"${2:host-b}\"],",
+      "  \"weight\": 1.0",
+      "}"
+    ],
+    "description": "多源合并（跨桶聚合）"
+  },
+  "RSL 管道步骤组": {
+    "prefix": "rsl-transform",
+    "body": [
+      "\"transform\": [",
+      "  { \"trim\": true },",
+      "  { \"replace\": { \"from\": \"${1:正则}\", \"to\": \"${2:替换}\" } },",
+      "  { \"absolute\": true }",
+      "]"
+    ],
+    "description": "常用管道步骤组（trim/replace/absolute）"
+  },
+  "RSL 缓存块": {
+    "prefix": "rsl-cache",
+    "body": [
+      "\"cache\": [{",
+      "  \"name\": \"${1:index}\",",
+      "  \"request\": { \"url\": \"https://${2:host}/api/index\" },",
+      "  \"take\": \"json:\\$.data\",",
+      "  \"ttl\": ${3:3600000}",
+      "}]"
+    ],
+    "description": "命名缓存块（ttl 毫秒）"
+  }
+}

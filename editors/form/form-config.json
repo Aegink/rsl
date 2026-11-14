@@ -1,0 +1,483 @@
+{
+  "schema_version": "2.0",
+  "fields": [
+    {
+      "field": "rsl",
+      "widget": "text",
+      "required": true,
+      "description": "MAJOR.MINOR。MAJOR 不等由编译器报 E_VERSION_UNSUPPORTED。"
+    },
+    {
+      "field": "id",
+      "widget": "text",
+      "required": true,
+      "description": ""
+    },
+    {
+      "field": "name",
+      "widget": "text",
+      "required": true,
+      "description": ""
+    },
+    {
+      "field": "type",
+      "widget": "select",
+      "required": true,
+      "description": "",
+      "$def": "carrier"
+    },
+    {
+      "field": "baseUrl",
+      "widget": "url",
+      "required": true,
+      "description": ""
+    },
+    {
+      "field": "match",
+      "widget": "group",
+      "required": false,
+      "description": ""
+    },
+    {
+      "field": "lang",
+      "widget": "text",
+      "required": false,
+      "description": ""
+    },
+    {
+      "field": "version",
+      "widget": "text",
+      "required": false,
+      "description": ""
+    },
+    {
+      "field": "requires",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "requires",
+      "fields": [
+        {
+          "field": "engine",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "features",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "crypto",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "selectorLevel",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        }
+      ]
+    },
+    {
+      "field": "http",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "http",
+      "fields": [
+        {
+          "field": "headers",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "timeout",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "retry",
+          "widget": "group",
+          "required": false,
+          "$def": "retry"
+        },
+        {
+          "field": "rate",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "redirect",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "cookies",
+          "widget": "select",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "proxy",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "dns",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "tls",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        }
+      ]
+    },
+    {
+      "field": "vars",
+      "widget": "group",
+      "required": false,
+      "description": ""
+    },
+    {
+      "field": "cookie",
+      "widget": "group",
+      "required": false,
+      "description": ""
+    },
+    {
+      "field": "cache",
+      "widget": "group",
+      "required": false,
+      "description": ""
+    },
+    {
+      "field": "media",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "media",
+      "fields": [
+        {
+          "field": "headers",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "decode",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "cache",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "maxBytes",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        }
+      ]
+    },
+    {
+      "field": "login",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "login",
+      "fields": [
+        {
+          "field": "type",
+          "widget": "select",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "fields",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "submit",
+          "widget": "group",
+          "required": false,
+          "$def": "loginSubmit"
+        },
+        {
+          "field": "steps",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "check",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "headers",
+          "widget": "group",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "webview",
+          "widget": "group",
+          "required": false,
+          "$def": "loginWebview"
+        },
+        {
+          "field": "relogin",
+          "widget": "group",
+          "required": false,
+          "$def": "loginRelogin"
+        }
+      ]
+    },
+    {
+      "field": "merge",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "merge",
+      "fields": [
+        {
+          "field": "key",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "normalize",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "crossBucket",
+          "widget": "checkbox",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "order",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "weight",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "minScore",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        }
+      ]
+    },
+    {
+      "field": "lib",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "lib",
+      "fields": [
+        {
+          "field": "pure",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "ctx",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        }
+      ]
+    },
+    {
+      "field": "stages",
+      "widget": "group",
+      "required": true,
+      "description": "",
+      "$def": "stages",
+      "fields": [
+        {
+          "field": "search",
+          "widget": "group",
+          "required": false,
+          "$def": "stage"
+        },
+        {
+          "field": "explore",
+          "widget": "group",
+          "required": false,
+          "$def": "stage"
+        },
+        {
+          "field": "detail",
+          "widget": "group",
+          "required": true,
+          "$def": "stage"
+        },
+        {
+          "field": "toc",
+          "widget": "group",
+          "required": true,
+          "$def": "stage"
+        },
+        {
+          "field": "content",
+          "widget": "group",
+          "required": true,
+          "$def": "stage"
+        }
+      ]
+    },
+    {
+      "field": "hostStages",
+      "widget": "group",
+      "required": false,
+      "description": ""
+    },
+    {
+      "field": "limits",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "limits",
+      "fields": [
+        {
+          "field": "maxBytes",
+          "widget": "text",
+          "required": false,
+          "$def": "budget"
+        },
+        {
+          "field": "maxNodes",
+          "widget": "text",
+          "required": false,
+          "$def": "budget"
+        },
+        {
+          "field": "timeoutMs",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "maxRedirects",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "maxPages",
+          "widget": "text",
+          "required": false,
+          "$def": "budget"
+        },
+        {
+          "field": "maxParallel",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "libSteps",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "scriptTimeoutMs",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "mediaBytes",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "loginCheckTtlMs",
+          "widget": "number",
+          "required": false,
+          "$def": null
+        }
+      ]
+    },
+    {
+      "field": "meta",
+      "widget": "group",
+      "required": false,
+      "description": "",
+      "$def": "meta",
+      "fields": [
+        {
+          "field": "author",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "homepage",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "license",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "updated",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "comment",
+          "widget": "text",
+          "required": false,
+          "$def": null
+        },
+        {
+          "field": "changelog",
+          "widget": "list",
+          "required": false,
+          "$def": null
+        }
+      ]
+    }
+  ]
+}

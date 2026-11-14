@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""B4 LSP 冒烟（TASK-BOOK-2 §3.2 B4 / §5.3 五场景）。
+"""B4 LSP 冒烟（TASK-BOOK-2 §3.2 B4 五场景 + TASK-BOOK-3 F2 场景 6）。
 
 裸 JSON-RPC over stdio 模拟编辑器：
   initialize → didOpen(七猫草稿) → diagnostics(≤3s) → hover(var:book.id)
   → completion(18 命名空间) → definition(var:chapter.url)
+  → codeAction(var:book.urll 笔误 → E_REF fix → 应用 → 诊断消失)
 
 用法：python -I tools/lsp_smoke.py
 """
@@ -24,6 +25,42 @@ try:
 except OSError as e:
     print(f"!! 打开 {DOC} 失败: {e}（七猫源在本地但不入库）")
     sys.exit(2)
+
+# 场景 6 fixture：var:book.urll 笔误（detail 引用 search 契约字段 url 的拼写错误）
+BROKEN_DOC = """{
+  "rsl": "2.0", "id": "lsp-smoke.example.com", "name": "冒烟站", "type": "novel",
+  "baseUrl": "https://lsp-smoke.example.com",
+  "requires": { "features": [], "crypto": [] },
+  "stages": {
+    "search": {
+      "request": { "url": "https://lsp-smoke.example.com/search", "params": { "q": "var:kw" } },
+      "out": {
+        "list": "css:ul.list li",
+        "map": {
+          "name": { "$": "css:a.title", "transform": [{ "trim": true }] },
+          "url": { "$": "css:a.title", "attr": "href", "transform": [{ "absolute": true }] }
+        },
+        "emptyOk": true
+      }
+    },
+    "detail": {
+      "request": { "url": "var:book.urll" },
+      "out": { "name": "css:h1", "tocUrl": { "$": "css:a.read", "attr": "href", "optional": true } }
+    },
+    "toc": {
+      "request": { "url": "var:book.tocUrl" },
+      "out": { "list": "css:#list li", "map": {
+        "title": { "$": "css:a", "transform": [{ "trim": true }] },
+        "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] }
+      } }
+    },
+    "content": {
+      "request": { "url": "var:chapter.url" },
+      "out": { "content": { "$": "css:div#content", "paragraphs": { "split": "br" } } }
+    }
+  }
+}
+"""
 
 proc = subprocess.Popen([CLI], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE)
@@ -146,6 +183,59 @@ dres = (defn or {}).get("result")
 ok_def = bool(dres) and (isinstance(dres, dict) or (isinstance(dres, list) and dres))
 results["definition"] = bool(ok_def)
 
+# 6) code action（TASK-BOOK-3 F2 / §5.3 场景 6）：var:book.urll 笔误 → E_REF + fix
+#    → code action → 应用 edit → didChange → E_REF 消失
+broken = BROKEN_DOC
+send({"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": {
+    "textDocument": {"uri": "file:///broken.json", "languageId": "json",
+                     "version": 1, "text": broken}}})
+bdiag = wait_for(
+    lambda n: n.get("method") == "textDocument/publishDiagnostics"
+    and n["params"]["uri"] == "file:///broken.json"
+    and any(d.get("code") == "E_REF" for d in n["params"]["diagnostics"]),
+    3.0)
+eref = None
+if bdiag:
+    eref = next((d for d in bdiag["params"]["diagnostics"] if d.get("code") == "E_REF"), None)
+results["broken_eref_with_fix"] = bool(eref and eref.get("data", {}).get("fix"))
+
+actions = []
+if eref:
+    # 在诊断 range 起点请求 code action
+    rng_start = eref["range"]["start"]
+    send({"jsonrpc": "2.0", "id": 5, "method": "textDocument/codeAction", "params": {
+        "textDocument": {"uri": "file:///broken.json"},
+        "range": {"start": rng_start, "end": rng_start},
+        "context": {"diagnostics": [eref]}}})
+    ca = wait_for(lambda n: n.get("id") == 5, 5)
+    actions = (ca or {}).get("result") or []
+results["code_action_offered"] = bool(actions) and "edit" in actions[0]
+
+# 应用第一个 action 的 edit（模拟客户端 applyEdit），再推送新文本
+applied = False
+if actions:
+    edits = actions[0]["edit"]["changes"]["file:///broken.json"]
+    lines = broken.split("\n")
+    for e in edits:  # 单文件单编辑；按倒序才安全，这里只有一个
+        s, en = e["range"]["start"], e["range"]["end"]
+        line = lines[s["line"]]
+        # UTF-16 code unit → Python 字符（本 fixture 行内无增补平面字符）
+        lines[s["line"]] = (line[:s["character"]] + e["newText"]
+                            + line[en["character"]:] if s["line"] == en["line"] else line)
+        applied = True
+    fixed_text = "\n".join(lines)
+    send({"jsonrpc": "2.0", "method": "textDocument/didChange", "params": {
+        "textDocument": {"uri": "file:///broken.json", "version": 2},
+        "contentChanges": [{"text": fixed_text}]}})
+    clean = wait_for(
+        lambda n: n.get("method") == "textDocument/publishDiagnostics"
+        and n["params"]["uri"] == "file:///broken.json"
+        and not any(d.get("code") == "E_REF" for d in n["params"]["diagnostics"]),
+        3.0)
+    results["fix_resolves_diag"] = bool(applied and clean)
+else:
+    results["fix_resolves_diag"] = False
+
 # 关闭
 send({"jsonrpc": "2.0", "id": 9, "method": "shutdown", "params": None})
 send({"jsonrpc": "2.0", "method": "exit", "params": None})
@@ -155,8 +245,9 @@ except subprocess.TimeoutExpired:
     proc.kill()
 
 print(json.dumps(results, ensure_ascii=False, indent=2))
-checks = ["initialize", "diagnostics≤3s", "hover_var", "completion_18", "definition"]
+checks = ["initialize", "diagnostics≤3s", "hover_var", "completion_18", "definition",
+          "broken_eref_with_fix", "code_action_offered", "fix_resolves_diag"]
 fails = [c for c in checks if not results.get(c)]
 print("\n== LSP 冒烟结果 ==")
-print("PASS 5/5" if not fails else f"FAIL: {fails}")
+print("PASS 6/6" if not fails else f"FAIL: {fails}")
 sys.exit(0 if not fails else 1)

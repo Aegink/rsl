@@ -1,7 +1,7 @@
 ---
 id: rsl-taskbook-3
 type: plan
-status: draft
+status: active
 title: RSL 内核增补任务书 v1.0（登录会话 · 机械重登 · 引擎默认化 · 编辑器 · 受控远程 · 修复建议）
 parent: rsl-language
 tags: [rsl, taskbook, v3, login, relogin, quickjs, editor, jslib, diagnostics]
@@ -325,7 +325,7 @@ python tools/lsp_smoke.py              # LSP 冒烟（6/6）
 
 | 文档 | 版本 | 状态 |
 |---|---|---|
-| 本文 | 1.0 | Draft（评审后转 Active） |
+| 本文 | 1.0 | **Active**（2026-11-14 起实施；22 条能力已全量交付，见 §7.2 自检） |
 | 依赖：RSL-1.0.md | 2.0 | Active（不改动既有条款语义） |
 | 依赖：TASK-BOOK.md / TASK-BOOK-2.md | v2.0 / v1.0 | ✅ 完结（基线） |
 | 输入：调研报告 | 1.0 | Active（证据链） |
@@ -335,6 +335,19 @@ python tools/lsp_smoke.py              # LSP 冒烟（6/6）
 > 登录会话端口测试绿了吗？relogin fixture 用例绿了吗？默认引擎下全量回归绿了吗？扩展协议测试过了吗？
 > 内联产物运行时零远程拉取证明了吗？fix 有效性测试（应用后编译通过）绿了吗？LSP 冒烟 6/6 了吗？
 > 文案表 36 码全覆盖了吗？——任何一个"没有"就不算完成。
+>
+> **实施结果（2026-11-14）**：
+>
+> | 自检项 | 证据 | 结果 |
+> |---|---|---|
+> | 登录会话端口 | `tests/login_session.rs` a1_fake_session_port_script | ✅ 17/17 |
+> | relogin fixture 用例 | b2_relogin_machine_success / b2_relogin_exhausted / b2_relogin_zero_keeps_legacy_semantics | ✅ |
+> | 默认引擎全量回归 | `cargo test -p rsl-core`（QuickJS 70+）与 Boa 侧（--no-default-features）双绿 | ✅ |
+> | 扩展协议测试 | `editors/vscode npm test` 6/6（+ 手工截图清单 H1 留桌面环境） | ✅ |
+> | 内联零远程拉取 | `tests/build_inline.rs` 7/7 + CLI 双构建字节一致 + 产物无 x-jslib/url 残留 | ✅ |
+> | fix 有效性 | `tests/fix_suggestions.rs` 6/6（应用后编译通过） | ✅ |
+> | LSP 冒烟 6/6 | `tools/lsp_smoke.py`（含场景 6 code action→应用→诊断消失） | ✅ |
+> | 文案表 36 码 | `spec/ERRORS-MESSAGES.md` + consistency 门禁断言 | ✅ |
 
 ### 7.3 与前轮的关系
 

@@ -1,0 +1,34 @@
+{
+  "rsl": "2.0", "id": "inline-demo.example.com", "name": "内联演示站", "type": "novel",
+  "baseUrl": "https://inline-demo.example.com",
+  "requires": { "features": ["js"], "crypto": [] },
+  "x-jslib": [ { "url": "file://libs/helper.js", "sha256": "c405f9f5c20bcaa54fda33a831bc6bf0957fb8962616fc735cb193b9a6683f54" } ],
+  "stages": {
+    "search": {
+      "request": { "url": "https://inline-demo.example.com/search", "params": { "q": "var:kw" } },
+      "out": {
+        "list": "css:ul.list li",
+        "map": {
+          "name": { "$": "css:a.title", "transform": [{ "trim": true }] },
+          "url": { "$": "css:a.title", "attr": "href", "transform": [{ "absolute": true }] }
+        },
+        "emptyOk": true
+      }
+    },
+    "detail": {
+      "request": { "url": "var:book.url" },
+      "out": { "name": "css:h1", "tocUrl": { "$": "css:a.read", "attr": "href", "optional": true } }
+    },
+    "toc": {
+      "request": { "url": "var:book.tocUrl" },
+      "out": { "list": "css:#list li", "map": {
+        "title": { "$": "css:a", "transform": [{ "trim": true }] },
+        "url": { "$": "css:a", "attr": "href", "transform": [{ "absolute": true }] }
+      } }
+    },
+    "content": {
+      "request": { "url": "var:chapter.url" },
+      "out": { "content": { "$": "css:div#content", "paragraphs": { "split": "br" } } }
+    }
+  }
+}

@@ -4,7 +4,14 @@
   "title": "RSL Reader Source 2.0",
   "description": "RSL 阅读源描述语言 · 2.0。形状校验；语义校验由 rsl-core 编译器负责（见 spec/COMPILER.md）。",
   "type": "object",
-  "required": ["rsl", "id", "name", "type", "baseUrl", "stages"],
+  "required": [
+    "rsl",
+    "id",
+    "name",
+    "type",
+    "baseUrl",
+    "stages"
+  ],
   "additionalProperties": true,
   "patternProperties": {
     "^x-": {}
@@ -19,318 +26,673 @@
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9._-]*$"
     },
-    "name": { "type": "string", "minLength": 1 },
-    "type": { "$ref": "#/$defs/carrier" },
-    "baseUrl": { "type": "string", "format": "uri" },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "$ref": "#/$defs/carrier"
+    },
+    "baseUrl": {
+      "type": "string",
+      "format": "uri"
+    },
     "match": {
       "type": "object",
       "properties": {
-        "detail": { "type": "string", "description": "详情页 URL 正则（re: 前缀可选）" }
+        "detail": {
+          "type": "string",
+          "description": "详情页 URL 正则（re: 前缀可选）"
+        }
       },
       "additionalProperties": true
     },
-    "lang": { "type": "string" },
-    "version": { "type": "string" },
-    "requires": { "$ref": "#/$defs/requires" },
-    "http": { "$ref": "#/$defs/http" },
+    "lang": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "requires": {
+      "$ref": "#/$defs/requires"
+    },
+    "http": {
+      "$ref": "#/$defs/http"
+    },
     "vars": {
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/varEntry" }
+      "additionalProperties": {
+        "$ref": "#/$defs/varEntry"
+      }
     },
     "cookie": {
       "type": "object",
       "properties": {
-        "persist": { "type": "boolean" },
-        "domain": { "type": "string" },
+        "persist": {
+          "type": "boolean"
+        },
+        "domain": {
+          "type": "string"
+        },
         "initial": {
           "type": "object",
-          "additionalProperties": { "type": "string" }
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": true
     },
     "cache": {
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/cacheEntry" }
+      "additionalProperties": {
+        "$ref": "#/$defs/cacheEntry"
+      }
     },
-    "media": { "$ref": "#/$defs/media" },
-    "login": { "$ref": "#/$defs/login" },
-    "merge": { "$ref": "#/$defs/merge" },
-    "lib": { "$ref": "#/$defs/lib" },
-    "stages": { "$ref": "#/$defs/stages" },
+    "media": {
+      "$ref": "#/$defs/media"
+    },
+    "login": {
+      "$ref": "#/$defs/login"
+    },
+    "merge": {
+      "$ref": "#/$defs/merge"
+    },
+    "lib": {
+      "$ref": "#/$defs/lib"
+    },
+    "stages": {
+      "$ref": "#/$defs/stages"
+    },
     "hostStages": {
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/stage" }
+      "additionalProperties": {
+        "$ref": "#/$defs/stage"
+      }
     },
-    "limits": { "$ref": "#/$defs/limits" },
-    "meta": { "$ref": "#/$defs/meta" }
+    "limits": {
+      "$ref": "#/$defs/limits"
+    },
+    "meta": {
+      "$ref": "#/$defs/meta"
+    }
   },
-
   "$defs": {
     "carrier": {
-      "enum": ["novel", "comic", "audio", "video", "file", "rss"]
+      "enum": [
+        "novel",
+        "comic",
+        "audio",
+        "video",
+        "file",
+        "rss"
+      ]
     },
-
     "requires": {
       "type": "object",
       "properties": {
-        "engine": { "type": "string" },
+        "engine": {
+          "type": "string"
+        },
         "features": {
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["js", "time", "random", "crypto", "font", "webview", "detect", "xpath", "jsonpath", "css", "captcha", "tls"]
+            "enum": [
+              "js",
+              "time",
+              "random",
+              "crypto",
+              "font",
+              "webview",
+              "detect",
+              "xpath",
+              "jsonpath",
+              "css",
+              "captcha",
+              "tls"
+            ]
           }
         },
         "crypto": {
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["md5", "sha1", "sha256", "sha512", "hmac-sha1", "hmac-sha256",
-                     "aes-cbc", "aes-gcm", "des", "triple-des", "base64", "hex", "url-encode"]
+            "enum": [
+              "md5",
+              "sha1",
+              "sha256",
+              "sha512",
+              "hmac-sha1",
+              "hmac-sha256",
+              "aes-cbc",
+              "aes-gcm",
+              "des",
+              "triple-des",
+              "base64",
+              "hex",
+              "url-encode"
+            ]
           }
         },
         "selectorLevel": {
           "type": "object",
           "properties": {
-            "css": { "enum": ["3", "4"] },
-            "xpath": { "enum": ["1.0"] },
-            "jsonpath": { "enum": ["9535"] }
+            "css": {
+              "enum": [
+                "3",
+                "4"
+              ]
+            },
+            "xpath": {
+              "enum": [
+                "1.0"
+              ]
+            },
+            "jsonpath": {
+              "enum": [
+                "9535"
+              ]
+            }
           },
           "additionalProperties": true
         }
       },
       "additionalProperties": true
     },
-
     "http": {
       "type": "object",
       "properties": {
-        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
-        "timeout": { "type": "integer", "minimum": 1 },
-        "retry": { "$ref": "#/$defs/retry" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retry": {
+          "$ref": "#/$defs/retry"
+        },
         "rate": {
           "type": "object",
           "properties": {
-            "rps": { "type": "number", "exclusiveMinimum": 0 },
-            "burst": { "type": "integer", "minimum": 1 },
-            "windowMs": { "type": "integer", "minimum": 1 },
-            "max": { "type": "integer", "minimum": 1 }
+            "rps": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "burst": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "windowMs": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1
+            }
           },
           "additionalProperties": true
         },
         "redirect": {
           "type": "object",
-          "properties": { "max": { "type": "integer", "minimum": 0 } },
+          "properties": {
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
           "additionalProperties": true
         },
-        "cookies": { "enum": ["none", "session", "persistent"] },
-        "proxy": { "type": "string" },
-        "dns": { "type": "object", "additionalProperties": { "type": "string" } },
+        "cookies": {
+          "enum": [
+            "none",
+            "session",
+            "persistent"
+          ]
+        },
+        "proxy": {
+          "type": "string"
+        },
+        "dns": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "tls": {
           "type": "object",
-          "properties": { "fingerprint": { "type": "string" } },
+          "properties": {
+            "fingerprint": {
+              "type": "string"
+            }
+          },
           "additionalProperties": true
         }
       },
       "additionalProperties": true
     },
-
     "retry": {
       "type": "object",
       "properties": {
-        "times": { "type": "integer", "minimum": 0 },
-        "backoff": { "enum": ["none", "linear", "exponential"] },
-        "on": { "type": "array", "items": { "type": "integer" } }
+        "times": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "backoff": {
+          "enum": [
+            "none",
+            "linear",
+            "exponential"
+          ]
+        },
+        "on": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
       },
       "additionalProperties": true
     },
-
     "varEntry": {
       "oneOf": [
-        { "type": "string" },
-        { "type": "number" },
-        { "type": "boolean" },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
         {
           "type": "object",
           "properties": {
             "value": {},
-            "label": { "type": "string" },
-            "options": { "type": "array", "items": { "type": ["string", "number"] } },
-            "persist": { "type": "boolean" },
-            "secret": { "type": "boolean" },
+            "label": {
+              "type": "string"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number"
+                ]
+              }
+            },
+            "persist": {
+              "type": "boolean"
+            },
+            "secret": {
+              "type": "boolean"
+            },
             "default": {}
           },
           "additionalProperties": true
         }
       ]
     },
-
     "cacheEntry": {
       "type": "object",
       "properties": {
-        "request": { "$ref": "#/$defs/request" },
-        "take": { "$ref": "#/$defs/selector" },
-        "key": { "type": "string" },
-        "ttl": { "type": "integer", "minimum": 0 },
-        "ttlPartial": { "type": "integer", "minimum": 0 }
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "take": {
+          "$ref": "#/$defs/selector"
+        },
+        "key": {
+          "type": "string"
+        },
+        "ttl": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ttlPartial": {
+          "type": "integer",
+          "minimum": 0
+        }
       },
       "additionalProperties": true
     },
-
     "media": {
       "type": "object",
       "properties": {
-        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "decode": {
           "type": "object",
           "properties": {
-            "in": { "enum": ["bytes"] },
-            "out": { "enum": ["bytes"] },
-            "fn": { "type": "string" }
+            "in": {
+              "enum": [
+                "bytes"
+              ]
+            },
+            "out": {
+              "enum": [
+                "bytes"
+              ]
+            },
+            "fn": {
+              "type": "string"
+            }
           },
-          "required": ["in", "out", "fn"],
+          "required": [
+            "in",
+            "out",
+            "fn"
+          ],
           "additionalProperties": true
         },
         "cache": {
           "type": "object",
-          "properties": { "ttl": { "type": "integer", "minimum": 0 } },
+          "properties": {
+            "ttl": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
           "additionalProperties": true
         },
-        "maxBytes": { "type": "integer", "minimum": 1 }
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": true
     },
-
     "login": {
       "type": "object",
-      "description": "单步（fields + submit）与多步（steps）二选一；二者同给由编译器报 E_SCHEMA。",
+      "description": "单步（fields + submit）与多步（steps）二选一；二者同给由编译器报 E_SCHEMA。type=webview 时用 webview 块（entry+success）；relogin.max 声明机械重登。",
       "properties": {
-        "type": { "enum": ["form", "cookie", "token", "qr"] },
-        "fields": { "type": "array", "items": { "$ref": "#/$defs/loginField" } },
-        "submit": { "$ref": "#/$defs/loginSubmit" },
-        "steps": { "type": "array", "items": { "$ref": "#/$defs/loginStep" } },
+        "type": {
+          "enum": [
+            "form",
+            "cookie",
+            "token",
+            "qr",
+            "webview"
+          ]
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/loginField"
+          }
+        },
+        "submit": {
+          "$ref": "#/$defs/loginSubmit"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/loginStep"
+          }
+        },
         "check": {
           "type": "object",
           "properties": {
-            "request": { "$ref": "#/$defs/request" },
-            "ok": { "$ref": "#/$defs/selector" }
+            "request": {
+              "$ref": "#/$defs/request"
+            },
+            "ok": {
+              "$ref": "#/$defs/selector"
+            }
           },
           "additionalProperties": true
         },
-        "headers": { "type": "object", "additionalProperties": { "type": "string" } }
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "webview": {
+          "$ref": "#/$defs/loginWebview"
+        },
+        "relogin": {
+          "$ref": "#/$defs/loginRelogin"
+        }
       },
       "additionalProperties": true
     },
-
     "loginField": {
       "type": "object",
-      "required": ["key"],
+      "required": [
+        "key"
+      ],
       "properties": {
-        "key": { "type": "string" },
-        "label": { "type": "string" },
-        "secret": { "type": "boolean" },
-        "default": { "type": ["string", "number", "boolean"] },
-        "placeholder": { "type": "string" }
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "secret": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "placeholder": {
+          "type": "string"
+        }
       },
       "additionalProperties": true
     },
-
     "loginSubmit": {
       "type": "object",
       "properties": {
-        "request": { "$ref": "#/$defs/request" },
-        "ok": { "$ref": "#/$defs/selector" },
-        "token": { "$ref": "#/$defs/selector" },
-        "cookie": { "$ref": "#/$defs/selector" }
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "ok": {
+          "$ref": "#/$defs/selector"
+        },
+        "token": {
+          "$ref": "#/$defs/selector"
+        },
+        "cookie": {
+          "$ref": "#/$defs/selector"
+        }
       },
       "additionalProperties": true
     },
-
     "loginStep": {
       "type": "object",
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "fields": { "type": "array", "items": { "$ref": "#/$defs/loginField" } },
-        "submit": { "$ref": "#/$defs/loginSubmit" },
+        "id": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/loginField"
+          }
+        },
+        "submit": {
+          "$ref": "#/$defs/loginSubmit"
+        },
         "next": {
           "type": "object",
           "properties": {
-            "to": { "type": "string" },
-            "when": { "$ref": "#/$defs/selector" }
+            "to": {
+              "type": "string"
+            },
+            "when": {
+              "$ref": "#/$defs/selector"
+            }
           },
-          "required": ["to"],
+          "required": [
+            "to"
+          ],
           "additionalProperties": true
         }
       },
       "additionalProperties": true
     },
-
     "merge": {
       "type": "object",
       "description": "多源搜索结果合并契约；宿主执行，语义由规范固定（RSL-1.0 §12.4）。",
       "properties": {
-        "key": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "key": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
         "normalize": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "enum": ["trim", "t2s", "lower", "stripPunct"] }
+          "items": {
+            "enum": [
+              "trim",
+              "t2s",
+              "lower",
+              "stripPunct"
+            ]
+          }
         },
-        "crossBucket": { "type": "boolean" },
+        "crossBucket": {
+          "type": "boolean"
+        },
         "order": {
           "type": "array",
-          "items": { "enum": ["exact", "contains", "weight", "sources", "other"] }
+          "items": {
+            "enum": [
+              "exact",
+              "contains",
+              "weight",
+              "sources",
+              "other"
+            ]
+          }
         },
-        "weight": { "type": "number" },
-        "minScore": { "type": "number" }
+        "weight": {
+          "type": "number"
+        },
+        "minScore": {
+          "type": "number"
+        }
       },
       "additionalProperties": true
     },
-
     "lib": {
       "type": "object",
       "properties": {
-        "pure": { "type": "string" },
-        "ctx": { "type": "string" }
+        "pure": {
+          "type": "string"
+        },
+        "ctx": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
-
     "stages": {
       "type": "object",
-      "required": ["detail", "toc", "content"],
+      "required": [
+        "detail",
+        "toc",
+        "content"
+      ],
       "anyOf": [
-        { "required": ["search"] },
-        { "required": ["explore"] }
+        {
+          "required": [
+            "search"
+          ]
+        },
+        {
+          "required": [
+            "explore"
+          ]
+        }
       ],
       "properties": {
-        "search": { "$ref": "#/$defs/stage" },
-        "explore": { "$ref": "#/$defs/stage" },
-        "detail": { "$ref": "#/$defs/stage" },
-        "toc": { "$ref": "#/$defs/stage" },
-        "content": { "$ref": "#/$defs/stage" }
+        "search": {
+          "$ref": "#/$defs/stage"
+        },
+        "explore": {
+          "$ref": "#/$defs/stage"
+        },
+        "detail": {
+          "$ref": "#/$defs/stage"
+        },
+        "toc": {
+          "$ref": "#/$defs/stage"
+        },
+        "content": {
+          "$ref": "#/$defs/stage"
+        }
       },
       "additionalProperties": false
     },
-
     "stage": {
       "type": "object",
       "properties": {
         "let": {
           "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/letEntry" }
+          "additionalProperties": {
+            "$ref": "#/$defs/letEntry"
+          }
         },
-        "request": { "$ref": "#/$defs/request" },
-        "parse": { "$ref": "#/$defs/selector" },
-        "out": { "$ref": "#/$defs/out" },
-        "paginate": { "$ref": "#/$defs/paginate" },
-        "script": { "$ref": "#/$defs/script" },
-        "onError": { "type": "string" },
-        "timeoutMs": { "type": "integer", "minimum": 1 },
-        "requiresLogin": { "type": "boolean" },
-        "order": { "enum": ["auto", "asc", "desc"] },
-        "dedupe": { "enum": ["url", "title", "none"] },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "parse": {
+          "$ref": "#/$defs/selector"
+        },
+        "out": {
+          "$ref": "#/$defs/out"
+        },
+        "paginate": {
+          "$ref": "#/$defs/paginate"
+        },
+        "script": {
+          "$ref": "#/$defs/script"
+        },
+        "onError": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requiresLogin": {
+          "type": "boolean"
+        },
+        "order": {
+          "enum": [
+            "auto",
+            "asc",
+            "desc"
+          ]
+        },
+        "dedupe": {
+          "enum": [
+            "url",
+            "title",
+            "none"
+          ]
+        },
         "reuseDetailHtml": {
           "type": "boolean",
           "description": "toc 专用：本阶段 URL 与 detail 相同则复用其响应，不发起请求（§6.5.2）。"
@@ -339,21 +701,38 @@
           "type": "boolean",
           "description": "content 专用：不请求，直接以 var:chapter.url 作为产物（§6.6.4）。"
         },
-        "filters": { "type": "array", "items": { "$ref": "#/$defs/filter" } },
-        "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
-        "groupsFrom": { "$ref": "#/$defs/selector" }
+        "filters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/filter"
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/group"
+          }
+        },
+        "groupsFrom": {
+          "$ref": "#/$defs/selector"
+        }
       },
       "additionalProperties": true
     },
-
     "letEntry": {
       "oneOf": [
-        { "type": "string" },
+        {
+          "type": "string"
+        },
         {
           "type": "object",
           "properties": {
-            "request": { "$ref": "#/$defs/request" },
-            "take": { "$ref": "#/$defs/selector" }
+            "request": {
+              "$ref": "#/$defs/request"
+            },
+            "take": {
+              "$ref": "#/$defs/selector"
+            }
           },
           "additionalProperties": true
         },
@@ -364,173 +743,334 @@
               "type": "array",
               "items": {
                 "type": "object",
-                "properties": { "request": { "$ref": "#/$defs/request" } },
+                "properties": {
+                  "request": {
+                    "$ref": "#/$defs/request"
+                  }
+                },
                 "additionalProperties": true
               }
             },
-            "limit": { "type": "integer", "minimum": 1 }
+            "limit": {
+              "type": "integer",
+              "minimum": 1
+            }
           },
-          "required": ["parallel"],
+          "required": [
+            "parallel"
+          ],
           "additionalProperties": true
         }
       ]
     },
-
     "request": {
       "type": "object",
       "properties": {
-        "url": { "type": "string" },
-        "method": { "enum": ["GET", "POST", "PUT", "DELETE", "HEAD"] },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "HEAD"
+          ]
+        },
         "params": {
           "type": "object",
-          "additionalProperties": { "type": ["string", "number", "boolean"] }
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
         },
         "body": {
           "type": "object",
           "properties": {
-            "type": { "enum": ["form", "json", "raw", "multipart"] },
+            "type": {
+              "enum": [
+                "form",
+                "json",
+                "raw",
+                "multipart"
+              ]
+            },
             "data": {}
           },
           "additionalProperties": true
         },
-        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
-        "charset": { "type": "string" },
+        "headers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "charset": {
+          "type": "string"
+        },
         "encode": {
           "type": "object",
           "properties": {
-            "params": { "type": "string" },
-            "body": { "type": "string" }
+            "params": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            }
           },
           "additionalProperties": true
         },
-        "response": { "enum": ["html", "json", "text", "bytes"] },
-        "engine": { "enum": ["http", "webview", "auto"] },
-        "webJs": { "type": "string" },
-        "sniff": { "type": "string" },
-        "autoUpgradeIf": { "$ref": "#/$defs/selector" },
-        "skip": { "type": "boolean" },
-        "retry": { "$ref": "#/$defs/retry" },
-        "timeout": { "type": "integer", "minimum": 1 }
+        "response": {
+          "enum": [
+            "html",
+            "json",
+            "text",
+            "bytes"
+          ]
+        },
+        "engine": {
+          "enum": [
+            "http",
+            "webview",
+            "auto"
+          ]
+        },
+        "webJs": {
+          "$ref": "#/$defs/webJs"
+        },
+        "sniff": {
+          "type": "string"
+        },
+        "autoUpgradeIf": {
+          "$ref": "#/$defs/selector"
+        },
+        "skip": {
+          "type": "boolean"
+        },
+        "retry": {
+          "$ref": "#/$defs/retry"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": true
     },
-
     "paginate": {
       "type": "object",
       "properties": {
-        "kind": { "enum": ["page", "next", "cursor", "enumerate"] },
-        "pageVar": { "type": "string" },
+        "kind": {
+          "enum": [
+            "page",
+            "next",
+            "cursor",
+            "enumerate"
+          ]
+        },
+        "pageVar": {
+          "type": "string"
+        },
         "next": {
           "oneOf": [
-            { "$ref": "#/$defs/selector" },
-            { "type": "array", "items": { "$ref": "#/$defs/selector" } }
+            {
+              "$ref": "#/$defs/selector"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/selector"
+              }
+            }
           ]
         },
         "cursor": {
           "type": "object",
           "properties": {
-            "take": { "$ref": "#/$defs/selector" },
-            "into": { "type": "string" }
+            "take": {
+              "$ref": "#/$defs/selector"
+            },
+            "into": {
+              "type": "string"
+            }
           },
           "additionalProperties": true
         },
         "enumerate": {
           "description": "kind=enumerate：字面数组，或 {from,to,step} 区间。",
           "oneOf": [
-            { "type": "array", "items": { "type": "integer" }, "minItems": 1 },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 1
+            },
             {
               "type": "object",
               "properties": {
-                "from": { "type": "integer" },
-                "to": { "type": "integer" },
-                "step": { "type": "integer" }
+                "from": {
+                  "type": "integer"
+                },
+                "to": {
+                  "type": "integer"
+                },
+                "step": {
+                  "type": "integer"
+                }
               },
-              "required": ["from", "to"],
+              "required": [
+                "from",
+                "to"
+              ],
               "additionalProperties": true
             }
           ]
         },
-        "into": { "type": "string" },
+        "into": {
+          "type": "string"
+        },
         "joinWith": {
           "type": "string",
           "description": "给了则只发一次请求，把枚举值拼成字符串注入；不给则逐值请求。"
         },
-        "carry": { "type": "array", "items": { "type": "string" } },
-        "max": { "type": "integer", "minimum": 1 },
+        "carry": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max": {
+          "type": "integer",
+          "minimum": 1
+        },
         "stopIf": {
           "type": "object",
           "properties": {
-            "empty": { "type": "string" },
-            "noNew": { "type": "boolean" }
+            "empty": {
+              "type": "string"
+            },
+            "noNew": {
+              "type": "boolean"
+            }
           },
           "additionalProperties": true
         }
       },
       "additionalProperties": true
     },
-
     "out": {
       "type": "object",
       "properties": {
-        "emptyOk": { "type": "boolean" },
+        "emptyOk": {
+          "type": "boolean"
+        },
         "verify": {
           "type": "object",
           "properties": {
-            "contains": { "type": "string" },
-            "minItems": { "type": "integer", "minimum": 0 }
+            "contains": {
+              "type": "string"
+            },
+            "minItems": {
+              "type": "integer",
+              "minimum": 0
+            }
           },
           "additionalProperties": true
         },
-        "list": { "$ref": "#/$defs/selector" },
+        "list": {
+          "$ref": "#/$defs/selector"
+        },
         "map": {
           "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/selector" }
+          "additionalProperties": {
+            "$ref": "#/$defs/selector"
+          }
         }
       },
       "additionalProperties": true
     },
-
     "script": {
       "type": "object",
       "properties": {
-        "before": { "$ref": "#/$defs/scriptRef" },
-        "onResponse": { "$ref": "#/$defs/scriptRef" },
-        "after": { "$ref": "#/$defs/scriptRef" }
+        "before": {
+          "$ref": "#/$defs/scriptRef"
+        },
+        "onResponse": {
+          "$ref": "#/$defs/scriptRef"
+        },
+        "after": {
+          "$ref": "#/$defs/scriptRef"
+        }
       },
       "additionalProperties": true
     },
-
     "scriptRef": {
       "oneOf": [
-        { "type": "string" },
+        {
+          "type": "string"
+        },
         {
           "type": "object",
           "properties": {
-            "fn": { "type": "string" },
-            "ctx": { "type": "boolean" }
+            "fn": {
+              "type": "string"
+            },
+            "ctx": {
+              "type": "boolean"
+            }
           },
-          "required": ["fn"],
+          "required": [
+            "fn"
+          ],
           "additionalProperties": true
         }
       ]
     },
-
     "filter": {
       "type": "object",
-      "required": ["key"],
+      "required": [
+        "key"
+      ],
       "properties": {
-        "key": { "type": "string" },
-        "label": { "type": "string" },
-        "default": { "type": ["string", "number", "boolean"] },
-        "persist": { "type": "boolean" },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "persist": {
+          "type": "boolean"
+        },
         "options": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["value"],
+            "required": [
+              "value"
+            ],
             "properties": {
-              "value": { "type": ["string", "number", "boolean"] },
-              "label": { "type": "string" }
+              "value": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "label": {
+                "type": "string"
+              }
             },
             "additionalProperties": true
           }
@@ -538,36 +1078,78 @@
       },
       "additionalProperties": true
     },
-
     "group": {
       "type": "object",
-      "required": ["title"],
+      "required": [
+        "title"
+      ],
       "properties": {
-        "title": { "type": "string" },
-        "url": { "type": "string" },
-        "params": { "type": "object" },
-        "when": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
-        "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } }
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        },
+        "when": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/group"
+          }
+        }
       },
       "additionalProperties": true
     },
-
     "selector": {
       "oneOf": [
-        { "type": "string" },
-        { "$ref": "#/$defs/selectorObj" }
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/selectorObj"
+        }
       ]
     },
-
     "selectorObj": {
       "type": "object",
       "properties": {
-        "$": { "type": "string" },
-        "attr": { "type": "string" },
-        "range": { "type": "string", "pattern": "^-?\\d*:-?\\d*(:-?\\d+)?$" },
-        "pick": { "type": "array", "items": { "type": "integer" } },
-        "exclude": { "type": "array", "items": { "type": "integer" } },
-        "exists": { "type": "boolean" },
+        "$": {
+          "type": "string"
+        },
+        "attr": {
+          "type": "string"
+        },
+        "range": {
+          "type": "string",
+          "pattern": "^-?\\d*:-?\\d*(:-?\\d+)?$"
+        },
+        "pick": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "exists": {
+          "type": "boolean"
+        },
         "eq": {},
         "ne": {},
         "gt": {},
@@ -575,66 +1157,141 @@
         "contains": {},
         "absolute": {
           "oneOf": [
-            { "type": "boolean" },
+            {
+              "type": "boolean"
+            },
             {
               "type": "object",
-              "properties": { "base": { "type": "string" } },
+              "properties": {
+                "base": {
+                  "type": "string"
+                }
+              },
               "additionalProperties": true
             }
           ]
         },
-        "where": { "type": "object", "additionalProperties": true },
-        "map": { "type": "object", "additionalProperties": { "$ref": "#/$defs/selector" } },
+        "where": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "map": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/selector"
+          }
+        },
         "blocks": {
           "type": "object",
           "properties": {
-            "mode": { "enum": ["flow", "paragraph"] },
-            "minLength": { "type": "integer", "minimum": 0 }
+            "mode": {
+              "enum": [
+                "flow",
+                "paragraph"
+              ]
+            },
+            "minLength": {
+              "type": "integer",
+              "minimum": 0
+            }
           },
           "additionalProperties": true
         },
         "paragraphs": {
           "type": "object",
           "properties": {
-            "split": { "enum": ["br", "block", "line", "auto"] },
-            "minLength": { "type": "integer", "minimum": 0 }
+            "split": {
+              "enum": [
+                "br",
+                "block",
+                "line",
+                "auto"
+              ]
+            },
+            "minLength": {
+              "type": "integer",
+              "minimum": 0
+            }
           },
           "additionalProperties": true
         },
-        "strip": { "type": "array", "items": { "$ref": "#/$defs/selector" } },
+        "strip": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/selector"
+          }
+        },
         "protect": {
           "description": "管道执行期间保护匹配片段，出口原样还原（§3.6.2）。",
           "oneOf": [
-            { "type": "array", "items": { "type": "string" } },
-            { "$ref": "#/$defs/selector" }
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "$ref": "#/$defs/selector"
+            }
           ]
         },
-        "transform": { "type": "array", "items": { "$ref": "#/$defs/transformStep" } },
-        "fallback": { "type": "array", "items": { "$ref": "#/$defs/selector" } },
-        "flags": { "type": "string", "pattern": "^[msi]+$" },
-        "typeMap": { "type": "object", "additionalProperties": { "$ref": "#/$defs/carrier" } },
-        "optional": { "type": "boolean" },
+        "transform": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transformStep"
+          }
+        },
+        "fallback": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/selector"
+          }
+        },
+        "flags": {
+          "type": "string",
+          "pattern": "^[msi]+$"
+        },
+        "typeMap": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/carrier"
+          }
+        },
+        "optional": {
+          "type": "boolean"
+        },
         "default": {},
-        "limit": { "type": "integer", "minimum": 1 }
+        "limit": {
+          "type": "integer",
+          "minimum": 1
+        }
       },
       "additionalProperties": true
     },
-
     "transformStep": {
       "type": "object",
       "minProperties": 1,
       "properties": {
         "trim": {
           "oneOf": [
-            { "type": "boolean" },
-            { "type": "array", "items": { "type": "string" } }
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           ]
         },
         "replace": {
           "type": "array",
           "items": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "minItems": 2,
             "maxItems": 2
           }
@@ -642,167 +1299,410 @@
         "regex": {
           "type": "object",
           "properties": {
-            "regex": { "type": "string" },
-            "replace": { "type": "string" },
-            "all": { "type": "boolean" }
+            "regex": {
+              "type": "string"
+            },
+            "replace": {
+              "type": "string"
+            },
+            "all": {
+              "type": "boolean"
+            }
           },
-          "required": ["regex"],
+          "required": [
+            "regex"
+          ],
           "additionalProperties": true
         },
         "match": {
           "type": "object",
           "properties": {
-            "regex": { "type": "string" },
-            "n": { "type": "integer", "minimum": 1 },
-            "group": { "type": ["string", "integer"] }
+            "regex": {
+              "type": "string"
+            },
+            "n": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "group": {
+              "type": [
+                "string",
+                "integer"
+              ]
+            }
           },
-          "required": ["regex"],
+          "required": [
+            "regex"
+          ],
           "additionalProperties": true
         },
-        "prepend": { "type": "string" },
-        "append": { "type": "string" },
+        "prepend": {
+          "type": "string"
+        },
+        "append": {
+          "type": "string"
+        },
         "absolute": {
           "oneOf": [
-            { "type": "boolean" },
+            {
+              "type": "boolean"
+            },
             {
               "type": "object",
-              "properties": { "base": { "type": "string" } },
+              "properties": {
+                "base": {
+                  "type": "string"
+                }
+              },
               "additionalProperties": true
             }
           ]
         },
-        "urlencode": { "type": ["boolean", "object"] },
-        "urldecode": { "type": ["boolean", "object"] },
-        "base64": { "enum": ["encode", "decode"] },
-        "hex": { "enum": ["encode", "decode"] },
+        "urlencode": {
+          "type": [
+            "boolean",
+            "object"
+          ]
+        },
+        "urldecode": {
+          "type": [
+            "boolean",
+            "object"
+          ]
+        },
+        "base64": {
+          "enum": [
+            "encode",
+            "decode"
+          ]
+        },
+        "hex": {
+          "enum": [
+            "encode",
+            "decode"
+          ]
+        },
         "crypto": {
           "type": "object",
           "properties": {
-            "alg": { "type": "string" },
-            "mode": { "enum": ["encrypt", "decrypt"] },
-            "key": { "type": "string" },
-            "iv": { "type": "string" },
-            "padding": { "type": "string" }
+            "alg": {
+              "type": "string"
+            },
+            "mode": {
+              "enum": [
+                "encrypt",
+                "decrypt"
+              ]
+            },
+            "key": {
+              "type": "string"
+            },
+            "iv": {
+              "type": "string"
+            },
+            "padding": {
+              "type": "string"
+            }
           },
-          "required": ["alg", "mode"],
+          "required": [
+            "alg",
+            "mode"
+          ],
           "additionalProperties": true
         },
         "font": {
           "type": "object",
           "properties": {
-            "map": { "type": "string" },
-            "ref": { "type": "string" }
+            "map": {
+              "type": "string"
+            },
+            "ref": {
+              "type": "string"
+            }
           },
           "additionalProperties": true
         },
-        "html": { "type": "boolean" },
-        "json": { "type": "boolean" },
+        "html": {
+          "type": "boolean"
+        },
+        "json": {
+          "type": "boolean"
+        },
         "date": {
           "type": "object",
           "properties": {
-            "from": { "type": "string" },
-            "to": { "type": "string" },
-            "tz": { "type": "integer" }
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "tz": {
+              "type": "integer"
+            }
           },
           "additionalProperties": true
         },
         "number": {
           "oneOf": [
-            { "type": "boolean" },
+            {
+              "type": "boolean"
+            },
             {
               "type": "object",
-              "properties": { "unit": { "type": "boolean" } },
+              "properties": {
+                "unit": {
+                  "type": "boolean"
+                }
+              },
               "additionalProperties": true
             }
           ]
         },
-        "numChapter": { "type": "boolean" },
-        "cjkNumber": { "enum": ["to", "from"] },
-        "t2s": { "type": "boolean" },
-        "s2t": { "type": "boolean" },
-        "slice": { "type": "string" },
-        "charset": { "type": "string" },
-        "join": { "type": "string" },
-        "split": { "type": "string" },
+        "numChapter": {
+          "type": "boolean"
+        },
+        "cjkNumber": {
+          "enum": [
+            "to",
+            "from"
+          ]
+        },
+        "t2s": {
+          "type": "boolean"
+        },
+        "s2t": {
+          "type": "boolean"
+        },
+        "slice": {
+          "type": "string"
+        },
+        "charset": {
+          "type": "string"
+        },
+        "join": {
+          "type": "string"
+        },
+        "split": {
+          "type": "string"
+        },
         "zip": {
           "description": "与父作用域中另一列表按下标配对（§3.6.1）。",
           "type": "object",
           "properties": {
-            "with": { "type": "string" },
-            "sep": { "type": "string" }
+            "with": {
+              "type": "string"
+            },
+            "sep": {
+              "type": "string"
+            }
           },
-          "required": ["with"],
+          "required": [
+            "with"
+          ],
           "additionalProperties": true
         },
         "protect": {
           "description": "管道内保护片段（规范 §3.6.2）：字符串数组，或选择器。",
           "oneOf": [
-            { "type": "array", "items": { "type": "string" } },
-            { "$ref": "#/$defs/selector" }
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "$ref": "#/$defs/selector"
+            }
           ]
         },
-        "unique": { "type": "boolean" },
-        "sort": { "type": ["boolean", "object"] },
-        "dropEmpty": { "type": "boolean" },
-        "js": { "$ref": "#/$defs/scriptRef" }
+        "unique": {
+          "type": "boolean"
+        },
+        "sort": {
+          "type": [
+            "boolean",
+            "object"
+          ]
+        },
+        "dropEmpty": {
+          "type": "boolean"
+        },
+        "js": {
+          "$ref": "#/$defs/scriptRef"
+        }
       },
       "additionalProperties": true
     },
-
     "limits": {
       "type": "object",
       "properties": {
-        "maxBytes": { "$ref": "#/$defs/budget" },
-        "maxNodes": { "$ref": "#/$defs/budget" },
-        "timeoutMs": { "type": "integer", "minimum": 1 },
-        "maxRedirects": { "type": "integer", "minimum": 0 },
-        "maxPages": { "$ref": "#/$defs/budget" },
-        "maxParallel": { "type": "integer", "minimum": 1 },
-        "libSteps": { "type": "integer", "minimum": 1 },
-        "scriptTimeoutMs": { "type": "integer", "minimum": 1 },
-        "mediaBytes": { "type": "integer", "minimum": 1 },
-        "loginCheckTtlMs": { "type": "integer", "minimum": 0 }
+        "maxBytes": {
+          "$ref": "#/$defs/budget"
+        },
+        "maxNodes": {
+          "$ref": "#/$defs/budget"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxRedirects": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxPages": {
+          "$ref": "#/$defs/budget"
+        },
+        "maxParallel": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "libSteps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scriptTimeoutMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mediaBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "loginCheckTtlMs": {
+          "type": "integer",
+          "minimum": 0
+        }
       },
       "additionalProperties": true
     },
-
     "budget": {
       "oneOf": [
-        { "type": "integer", "minimum": 1 },
+        {
+          "type": "integer",
+          "minimum": 1
+        },
         {
           "type": "object",
           "properties": {
-            "value": { "type": "integer", "minimum": 1 },
-            "on": { "enum": ["reject", "truncate"] }
+            "value": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "on": {
+              "enum": [
+                "reject",
+                "truncate"
+              ]
+            }
           },
-          "required": ["value"],
+          "required": [
+            "value"
+          ],
           "additionalProperties": true
         }
       ]
     },
-
     "meta": {
       "type": "object",
       "properties": {
-        "author": { "type": "string" },
-        "homepage": { "type": "string" },
-        "license": { "type": "string" },
-        "updated": { "type": "string" },
-        "comment": { "type": "string" },
+        "author": {
+          "type": "string"
+        },
+        "homepage": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "string"
+        },
+        "comment": {
+          "type": "string"
+        },
         "changelog": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "version": { "type": "string" },
-              "date": { "type": "string" },
-              "note": { "type": "string" }
+              "version": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              }
             },
             "additionalProperties": true
           }
         }
       },
       "additionalProperties": true
+    },
+    "loginWebview": {
+      "type": "object",
+      "description": "WebView 交互登录（TASK-BOOK-3 A2）：宿主打开 entry，回捕 cookie 后按 success/check 判定；交互 UI 全归宿主。",
+      "required": [
+        "entry",
+        "success"
+      ],
+      "properties": {
+        "entry": {
+          "type": "string",
+          "minLength": 1,
+          "description": "登录入口 URL"
+        },
+        "success": {
+          "$ref": "#/$defs/selector",
+          "description": "成功判定（登录后才存在的节点/字段）"
+        }
+      },
+      "additionalProperties": true
+    },
+    "loginRelogin": {
+      "type": "object",
+      "description": "机械重登（TASK-BOOK-3 B1）：max 默认 0（关闭）；上限 2（V3-D3 防打站点）；交互型登录自动重登 → E_CHALLENGE。",
+      "properties": {
+        "max": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "机械重登次数上限"
+        }
+      },
+      "additionalProperties": true
+    },
+    "webJs": {
+      "description": "webJs：字符串（页面内自由 JS，现状形态）或对象 {fn, ctx:true}（声明制受控桥，宿主才向页面暴露 __ctx；V3-D6）。",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "required": [
+            "fn"
+          ],
+          "properties": {
+            "fn": {
+              "type": "string",
+              "minLength": 1,
+              "description": "页面执行的 JS"
+            },
+            "ctx": {
+              "type": "boolean",
+              "default": false,
+              "description": "true 时宿主把受控 __ctx 桥暴露给页面；未声明能力调用 → E_UNSUPPORTED"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
     }
   }
 }

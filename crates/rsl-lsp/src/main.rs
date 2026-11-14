@@ -102,6 +102,7 @@ fn server_loop() {
                         "hoverProvider": true,
                         "completionProvider": { "triggerCharacters": [":", ".", "\""] },
                         "definitionProvider": true,
+                        "codeActionProvider": true,
                     },
                     "serverInfo": { "name": "rsl-lsp", "version": rsl_core::VERSION },
                 });
@@ -111,10 +112,17 @@ fn server_loop() {
             "shutdown" => write_msg(&mut out, id, Some(Value::Null), None),
             "exit" => return,
             "textDocument/didOpen" | "textDocument/didChange" | "textDocument/didSave" => {
+                // didOpen/didSave：全文在 textDocument.text；didChange（全量同步，Sync=1）：contentChanges[0].text
                 let text = params
                     .pointer("/textDocument/text")
                     .and_then(|t| t.as_str())
-                    .map(String::from);
+                    .map(String::from)
+                    .or_else(|| {
+                        params
+                            .pointer("/contentChanges/0/text")
+                            .and_then(|t| t.as_str())
+                            .map(String::from)
+                    });
                 let uri = params
                     .pointer("/textDocument/uri")
                     .and_then(|t| t.as_str())
@@ -175,6 +183,20 @@ fn server_loop() {
                 let result = match text {
                     Some(t) => definition_result(&t, &pos),
                     None => Value::Null,
+                };
+                write_msg(&mut out, id, Some(result), None);
+            }
+            // F2 code action：消费 Diagnostic.fix（确定性类），返回可应用的 TextEdit
+            "textDocument/codeAction" => {
+                let uri = params
+                    .pointer("/textDocument/uri")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let text = docs.lock().unwrap().get(&uri).cloned();
+                let result = match text {
+                    Some(t) => code_action_result(&t, &uri, &params.pointer("/context").cloned().unwrap_or(Value::Null)),
+                    None => Value::Array(vec![]),
                 };
                 write_msg(&mut out, id, Some(result), None);
             }
@@ -256,13 +278,69 @@ fn diag_json(d: &Diagnostic, text: &str) -> Value {
     let range = pos_range(text, &d.path)
         .or_else(|| pos_range(text, &last_seg))
         .unwrap_or_else(|| json!({"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}}));
-    json!({
+    let mut m = json!({
         "range": range,
         "severity": sev,
         "code": d.code.as_str(),
         "source": "rsl",
         "message": format!("{}（at {}）\nhint: {}", d.message, d.path, d.hint),
-    })
+    });
+    // F1→F2：确定性 fix 随诊断下发（data.fix），code action 据此生成 TextEdit
+    if let Some(fx) = &d.fix {
+        m["data"] = json!({
+            "fix": {
+                "find": fx.find,
+                "replacement": fx.replacement,
+                "message": fx.message,
+            }
+        });
+    }
+    m
+}
+
+/// 字节偏移 → LSP 位置（行 + UTF-16 code unit 列）。
+fn offset_to_pos(text: &str, off: usize) -> Value {
+    let off = off.min(text.len());
+    let line = text[..off].bytes().filter(|b| *b == b'\n').count();
+    let line_start = text[..off].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let ch = text[line_start..off].encode_utf16().count();
+    json!({"line": line, "character": ch})
+}
+
+/// F2 code action：对每条带 data.fix 的诊断，生成 quickfix CodeAction（含完整 WorkspaceEdit）。
+/// 语义与 F1 有效性测试一致：文档中首个 `find` 精确替换为 `replacement`。
+fn code_action_result(text: &str, uri: &str, context: &Value) -> Value {
+    let mut actions = vec![];
+    let diags = context.get("diagnostics").and_then(|d| d.as_array()).cloned().unwrap_or_default();
+    for dg in diags {
+        let Some(fx) = dg.pointer("/data/fix") else { continue };
+        let (Some(find), Some(repl)) = (
+            fx.get("find").and_then(|v| v.as_str()),
+            fx.get("replacement").and_then(|v| v.as_str()),
+        ) else {
+            continue;
+        };
+        // 定位文档中首个 `find`（与 fix 有效性测试同一确定性语义）
+        let Some(start) = text.find(find) else { continue };
+        let end = start + find.len();
+        let title = fx
+            .get("message")
+            .and_then(|v| v.as_str())
+            .map(|m| format!("替换为 {repl}（{m}）"))
+            .unwrap_or_else(|| format!("替换为 {repl}"));
+        actions.push(json!({
+            "title": title,
+            "kind": "quickfix",
+            "diagnostics": [dg],
+            "edit": { "changes": {
+                uri: [{
+                    "range": { "start": offset_to_pos(text, start), "end": offset_to_pos(text, end) },
+                    "newText": repl,
+                }]
+            } },
+        }));
+    }
+    Value::Array(actions)
 }
 
 /// 光标处字符串 token（行内向左/右找 " 边界）。

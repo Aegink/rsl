@@ -10,7 +10,10 @@ name = "rsl_core"
 path = "src/lib.rs"
 
 [features]
-default = ["engine-js", "net"]
+# C1（TASK-BOOK-3 V3-D5）：native 默认 QuickJS（基准 2.0-3.4x，55/55 等价）；
+# wasm 绑定显式 default-features=false + engine-js 维持 Boa。
+# Boa 侧回归：cargo test -p rsl-core --no-default-features --features engine-js,net
+default = ["engine-quickjs", "net"]
 engine-js = ["dep:boa_engine"]
 engine-quickjs = ["dep:rquickjs"]
 net = ["dep:ureq"]

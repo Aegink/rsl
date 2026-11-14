@@ -1,6 +1,29 @@
-//! bench 负载探针。
-use rsl_core::script::{boa_engine::BoaEngine, ScriptEngine};
+//! bench 负载探针（引擎无关：按编译进来的默认引擎跑，C1 后默认 QuickJS）。
+use rsl_core::script::ScriptEngine;
 use serde_json::json;
+
+/// 构造"当前 feature 集默认引擎"（与 setup_engine 的优先级一致）。
+fn make_default_engine(
+    pure: &str,
+    ctx: &str,
+    lib_steps: i64,
+) -> std::rc::Rc<dyn ScriptEngine> {
+    #[cfg(feature = "engine-quickjs")]
+    {
+        let _ = (pure, ctx, lib_steps);
+        std::rc::Rc::new(rsl_core::script::quickjs_engine::QuickJsEngine::new(pure, ctx, lib_steps))
+    }
+    #[cfg(all(feature = "engine-js", not(feature = "engine-quickjs")))]
+    {
+        let _ = lib_steps;
+        std::rc::Rc::new(rsl_core::script::boa_engine::BoaEngine::new(pure, ctx, lib_steps))
+    }
+    #[cfg(not(any(feature = "engine-js", feature = "engine-quickjs")))]
+    {
+        let _ = (pure, ctx, lib_steps);
+        panic!("无 JS 引擎 feature");
+    }
+}
 
 struct H;
 impl rsl_core::script::CtxApi for H {
@@ -47,13 +70,13 @@ function qmDecryptBatch(ctx, items) {
   return out.length;
 }
 "#;
-    let e = BoaEngine::new("function cleanTitle(s){ return String(s||'').trim(); }", ctx_src, 1_000_000_000);
+    let e = make_default_engine("function cleanTitle(s){ return String(s||'').trim(); }", ctx_src, 1_000_000_000);
     let items = json!([
         {"key": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
          "iv": "MDEyMzQ1Njc4OWFiY2RlZg==",
          "data": "6060606060606060606060606060606060606060606060606060606060606060"}
     ]);
     let r = e.call_ctx("qmDecryptBatch", &[&items], &H, "probe");
-    println!("boa qmDecryptBatch: {r:?}");
+    println!("qmDecryptBatch: {r:?}");
     assert!(r.is_ok());
 }

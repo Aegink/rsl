@@ -2,6 +2,7 @@
 //! `selector` 不得依赖 `http`；`exec` 不得依赖 `stage`；`analyze` 只读 `model` + `ir` + `expr`。
 
 pub mod analyze;
+pub mod build;
 pub mod crypto;
 pub mod error;
 pub mod exec;

@@ -44,6 +44,9 @@ pub struct WebViewRequest {
     pub url: String,
     pub headers: Vec<(String, String)>,
     pub web_js: Option<String>,
+    /// C2：webJs 声明了 ctx:true —— 宿主此时才可向页面暴露受控 __ctx 桥；
+    /// 桥内调用宿主未实现的能力 → E_UNSUPPORTED。false 时严禁暴露（自由 JS 现状语义）。
+    pub web_js_ctx: bool,
     pub sniff: Option<String>,
     pub timeout_ms: i64,
 }
@@ -58,6 +61,66 @@ pub struct WebViewResult {
 
 pub trait WebViewPort: Send + Sync {
     fn render(&self, req: &WebViewRequest) -> Result<WebViewResult, Diagnostic>;
+}
+
+// ───────────────────────── 交互式登录会话（TASK-BOOK-3 A1，V3-D1） ─────────────────────────
+
+/// 会话轮询结果：同步轮询模型（内核单次调用即返回，宿主 UI 在自有线程推进）。
+#[derive(Debug, Clone)]
+pub enum SessionPoll {
+    /// 宿主 UI 仍在进行（用户未完成/未取消）。
+    Pending,
+    /// 会话结束：回捕 cookie + 会话实际 UA。
+    Done(SessionResult),
+    /// 宿主 UI 被用户关闭/取消。
+    Cancelled,
+}
+
+/// 会话回捕产物（cookie 由宿主 WebView 持有后按 V3-D2 交内核校验入隔离键）。
+#[derive(Debug, Clone, Default)]
+pub struct SessionResult {
+    /// 回捕 cookie（名 → 值）。
+    pub cookies: Vec<(String, String)>,
+    /// 会话实际 UA（A4 一致性校验依据；宿主拿不到时为 None）。
+    pub ua: Option<String>,
+}
+
+/// 交互式登录会话端口。V3-D1：渲染（WebViewPort）≠ 交互会话——生命周期、
+/// 归宿主 UI 的程度都不同，独立端口；交互 UI 全归宿主，内核只定义协议。
+pub trait LoginSessionPort: Send + Sync {
+    /// 打开会话入口（宿主显示交互 UI 加载 entry URL）。
+    fn begin(&self, entry_url: &str) -> Result<(), Diagnostic>;
+    /// 轮询会话状态。
+    fn poll(&self) -> SessionPoll;
+}
+
+/// 测试/无 UI 环境用：脚本化会话（begin 记录入口；poll 按脚本出队）。
+pub struct FakeSessionPort {
+    pub script: std::sync::Mutex<std::collections::VecDeque<SessionPoll>>,
+    pub began: std::sync::Mutex<Vec<String>>,
+}
+
+impl FakeSessionPort {
+    pub fn new(script: Vec<SessionPoll>) -> Self {
+        Self {
+            script: std::sync::Mutex::new(script.into()),
+            began: std::sync::Mutex::new(vec![]),
+        }
+    }
+}
+
+impl LoginSessionPort for FakeSessionPort {
+    fn begin(&self, entry_url: &str) -> Result<(), Diagnostic> {
+        self.began
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(entry_url.to_string());
+        Ok(())
+    }
+    fn poll(&self) -> SessionPoll {
+        let mut q = self.script.lock().unwrap_or_else(|e| e.into_inner());
+        q.pop_front().unwrap_or(SessionPoll::Pending)
+    }
 }
 
 /// Cookie 存储（登录态隔离键由宿主保管，内核按键取值）。

@@ -9,6 +9,7 @@ use serde_json::Value;
 use rsl_core::testkit::lint::lint;
 use std::path::{Path, PathBuf};
 
+mod check;
 mod fuzz;
 mod import;
 
@@ -55,6 +56,7 @@ fn run_main(args: Vec<String>) -> i32 {
         "explain" => cmd_explain(rest),
         "fuzz" => fuzz::cmd_fuzz(rest),
         "import" => import::cmd_import(rest),
+        "check" => check::cmd_check(rest),
         "help" | "--help" | "-h" => {
             print_help();
             0
@@ -206,7 +208,7 @@ fn cmd_compile(rest: &[String]) -> i32 {
 
 fn cmd_run(rest: &[String]) -> i32 {
     if rest.len() < 2 {
-        eprintln!("用法：rsl run <src> <stage> [--kw …] [--page N] [--trace] [--fixture f] [--book key=val] [--chapter key=val]");
+        eprintln!("用法：rsl run <src> <stage> [--kw …] [--page N] [--trace] [--trace-json p] [--fixture f] [--book key=val] [--chapter key=val]");
         return 2;
     }
     let src_path = &rest[0];
@@ -214,6 +216,7 @@ fn cmd_run(rest: &[String]) -> i32 {
     let mut kw = None;
     let mut page = None;
     let mut trace = false;
+    let mut trace_json: Option<String> = None;
     let mut fixture: Option<String> = None;
     let mut book: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
     let mut chapter: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
@@ -231,6 +234,10 @@ fn cmd_run(rest: &[String]) -> i32 {
             "--trace" => {
                 trace = true;
                 i += 1;
+            }
+            "--trace-json" => {
+                trace_json = rest.get(i + 1).cloned();
+                i += 2;
             }
             "--fixture" => {
                 fixture = rest.get(i + 1).cloned();
@@ -296,7 +303,36 @@ fn cmd_run(rest: &[String]) -> i32 {
         ..Default::default()
     };
     let mut reuse = ResponseReuse::default();
-    match run_stage(&src, stage_name, &mut cx, &inputs, &mut reuse, &HostCaps::default()) {
+    let t0 = std::time::Instant::now();
+    let run_res = run_stage(&src, stage_name, &mut cx, &inputs, &mut reuse, &HostCaps::default());
+    let elapsed_ms = t0.elapsed().as_millis() as u64;
+    // D2：trace + 诊断 + 计时 → 结构化 JSON（schema/trace.schema.json，版本 rsl-trace/1，H4）
+    if let Some(path) = &trace_json {
+        let warns = cx.warnings.borrow().clone();
+        let mut doc = serde_json::json!({
+            "schema": "rsl-trace/1",
+            "source": src_path,
+            "stage": stage_name,
+            "ok": run_res.is_ok(),
+            "elapsed_ms": elapsed_ms,
+            "trace": cx.trace.borrow().iter().collect::<Vec<_>>(),
+            "warnings": warns,
+        });
+        if let Err(d) = &run_res {
+            doc["error"] = serde_json::to_value(d).unwrap_or_default();
+        }
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        match serde_json::to_string_pretty(&doc) {
+            Ok(s) => {
+                std::fs::write(path, s + "\n").ok();
+                println!("trace JSON → {path}");
+            }
+            Err(e) => eprintln!("trace JSON 序列化失败：{e}"),
+        }
+    }
+    match run_res {
         Ok(r) => {
             println!("{}", serde_json::to_string_pretty(&r.out).unwrap_or_default());
             if trace {
@@ -536,18 +572,29 @@ fn cmd_test_watch(src_path: &str, cases_file: &Path) -> i32 {
 
 fn cmd_build(rest: &[String]) -> i32 {
     if rest.is_empty() {
-        eprintln!("用法：rsl build <srcdir> [--out dist]");
+        eprintln!("用法：rsl build <srcdir> [--out dist] [--inline-jslib] [--force]");
         return 2;
     }
     let dir = Path::new(&rest[0]);
     let mut out_dir = PathBuf::from("dist");
+    let mut inline_jslib = false;
+    let mut force = false;
     let mut i = 1;
     while i < rest.len() {
-        if rest[i] == "--out" {
-            out_dir = PathBuf::from(rest.get(i + 1).map(|s| s.as_str()).unwrap_or("dist"));
-            i += 2;
-        } else {
-            i += 1;
+        match rest[i].as_str() {
+            "--out" => {
+                out_dir = PathBuf::from(rest.get(i + 1).map(|s| s.as_str()).unwrap_or("dist"));
+                i += 2;
+            }
+            "--inline-jslib" => {
+                inline_jslib = true;
+                i += 1;
+            }
+            "--force" => {
+                force = true;
+                i += 1;
+            }
+            _ => i += 1,
         }
     }
     // 收集 srcdir 下全部 .rsl.json（递归子目录树，确定性排序，S§14）
@@ -564,11 +611,49 @@ fn cmd_build(rest: &[String]) -> i32 {
     let mut all_ok = true;
     for f in &files {
         let text = load(f.to_str().unwrap_or("")).unwrap_or_default();
-        let out = analyze::compile_str(&text);
+        // E1：构建期内联 x-jslib（远程拉取只发生在构建期，V3-D7）
+        let mut build_text = text.clone();
+        if inline_jslib {
+            // file:// 相对路径按源所在目录解析
+            let src_dir = f.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+            let fetch = |url: &str| fetch_jslib_at(url, &src_dir);
+            match rsl_core::build::inline_jslib(&text, &fetch, force) {
+                Ok(out) => {
+                    for w in &out.warnings {
+                        println!("⚠ {}", w.message);
+                    }
+                    for e in &out.entries {
+                        manifest.push_str(&format!(
+                            "jslib {} sha256:{}{}\n",
+                            e.url,
+                            e.sha256,
+                            e.declared_sha256
+                                .as_ref()
+                                .map(|d| format!(" declared:{}", d))
+                                .unwrap_or_default()
+                        ));
+                    }
+                    if !out.entries.is_empty() {
+                        println!(
+                            "✓ {} 内联 {} 个 jsLib（运行时零远程拉取）",
+                            f.display(),
+                            out.entries.len()
+                        );
+                    }
+                    build_text = out.text;
+                }
+                Err(d) => {
+                    println!("✗ {} x-jslib 内联失败：{}", rel_of(f, dir), d.message);
+                    all_ok = false;
+                    continue;
+                }
+            }
+        }
+        let out = analyze::compile_str(&build_text);
         // 产物保留子目录结构（dist/<相对路径>）
-        let rel = f.strip_prefix(dir).unwrap_or(f).to_path_buf();
+        let rel = rel_of(f, dir);
         if out.source.is_none() {
-            println!("✗ {} 编译失败（语法门禁拦截，产物不落盘）", rel.display());
+            println!("✗ {} 编译失败（语法门禁拦截，产物不落盘）", rel);
             all_ok = false;
             continue;
         }
@@ -576,13 +661,14 @@ fn cmd_build(rest: &[String]) -> i32 {
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent).ok();
         }
-        std::fs::write(&dest, &text).ok();
+        std::fs::write(&dest, &build_text).ok();
         manifest.push_str(&format!(
-            "{} sha256:{}\n",
-            rel.to_string_lossy(),
-            sha256_hex(text.as_bytes())
+            "{} sha256:{}{}\n",
+            rel,
+            sha256_hex(build_text.as_bytes()),
+            if inline_jslib && build_text != text { " inlined" } else { "" }
         ));
-        println!("✓ {} → {}", rel.display(), dest.display());
+        println!("✓ {} → {}", rel, dest.display());
     }
     let manifest_path = out_dir.join("MANIFEST.txt");
     std::fs::write(&manifest_path, &manifest).ok();
@@ -592,6 +678,45 @@ fn cmd_build(rest: &[String]) -> i32 {
     } else {
         1
     }
+}
+
+/// 相对路径（构建产物/报错共用）。
+fn rel_of(f: &Path, dir: &Path) -> String {
+    f.strip_prefix(dir).unwrap_or(f).to_string_lossy().to_string()
+}
+
+/// E1 jsLib 拉取：file:// 本地读取（相对路径按源目录解析）；https:// ureq（重试 2）；其余拒绝。
+/// 内核不做网络——本闭包是唯一的 IO 边界（rsl-core::build 只消费它）。
+fn fetch_jslib_at(url: &str, src_dir: &Path) -> Result<Vec<u8>, String> {
+    if let Some(path) = url.strip_prefix("file://") {
+        let p = Path::new(path);
+        let full = if p.is_absolute() { p.to_path_buf() } else { src_dir.join(p) };
+        return std::fs::read(&full)
+            .map_err(|e| format!("file 读取失败 {}：{e}", full.display()));
+    }
+    if url.starts_with("https://") || url.starts_with("http://") {
+        let mut last = String::new();
+        for _ in 0..=2 {
+            match ureq::get(url)
+                .set("User-Agent", "rsl-build/1.0")
+                .timeout(std::time::Duration::from_secs(30))
+                .call()
+            {
+                Ok(r) => {
+                    let mut buf = vec![];
+                    use std::io::Read as _;
+                    match r.into_reader().read_to_end(&mut buf) {
+                        Ok(_) => return Ok(buf),
+                        Err(e) => last = e.to_string(),
+                    }
+                }
+                Err(e) => last = e.to_string(),
+            }
+            std::thread::sleep(std::time::Duration::from_millis(400));
+        }
+        return Err(last);
+    }
+    Err(format!("不支持的 jsLib 协议：{url}（仅 file:// 与 https://）"))
 }
 
 /// 递归收集 .rsl.json（子目录树；跳过 dist/ target/ 与隐藏目录）。
@@ -1405,11 +1530,21 @@ fn build_content_out(rule: &serde_json::Value, changed: &mut Vec<serde_json::Val
 
 fn cmd_explain(rest: &[String]) -> i32 {
     if rest.len() < 2 {
-        eprintln!("用法：rsl explain <src> <path> [--kw …]");
+        eprintln!("用法：rsl explain <src> <path> [--snapshot p]");
         return 2;
     }
     let src_path = &rest[0];
     let rule_path = &rest[1];
+    let mut snapshot: Option<String> = None;
+    let mut i = 2;
+    while i < rest.len() {
+        if rest[i] == "--snapshot" {
+            snapshot = rest.get(i + 1).cloned();
+            i += 2;
+        } else {
+            i += 1;
+        }
+    }
     let text = match load(src_path) {
         Ok(t) => t,
         Err(e) => {
@@ -1418,6 +1553,11 @@ fn cmd_explain(rest: &[String]) -> i32 {
         }
     };
     let out = analyze::compile_str(&text);
+    let explain_diags: Vec<Value> = out
+        .errors()
+        .iter()
+        .map(|d| serde_json::to_value(d).unwrap_or_default())
+        .collect();
     let Some(src) = out.source else {
         eprintln!("编译失败（explain 需要可编译源）");
         return 1;
@@ -1459,6 +1599,28 @@ fn cmd_explain(rest: &[String]) -> i32 {
             println!("规则 {field} = {rule}");
             println!("提示：连上网络用 `rsl run {src_path} {stage_name} --trace` 看 matched 与 bridge；");
             println!("      对比同义选择器可加 fallback 依次尝试（S§3.7）。");
+            // F5：诊断快照（编译结论 + 诊断 + 解释）→ 单 JSON；幂等（两次一致）
+            if let Some(snap_path) = &snapshot {
+                let diags = explain_diags.clone();
+                let doc = serde_json::json!({
+                    "schema": "rsl-snapshot/1",
+                    "source": src_path,
+                    "rule_path": rule_path,
+                    "stage": stage_name,
+                    "field": field,
+                    "ok": true,
+                    "rule": rule,
+                    "note": "排查快照：可离线分享；不含站点内容（S§17）",
+                    "diagnostics": diags,
+                });
+                if let Some(parent) = Path::new(snap_path).parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                let text = serde_json::to_string_pretty(&doc).unwrap_or_default();
+                std::fs::write(snap_path, text + "
+").ok();
+                println!("快照 → {snap_path}");
+            }
             0
         }
         None => {

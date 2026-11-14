@@ -191,8 +191,64 @@ def main():
         print("✗ 缺少引擎基准报告归档")
         failures += 1
 
+    # ── C3 门禁扩展（TASK-BOOK-3）：双引擎必绿项 ──
+    # 默认引擎（QuickJS，V3-D5）与 Boa 回退侧各跑一遍 rsl-core 全套件。
+    # 已由调用方先跑 cargo 时这里做"报告存在性 + 命令提示"级校验；
+    # 直接执行见 --with-cargo（CI 传 --with-cargo 时现场跑两套件）。
+    dual_arg = "--with-cargo" in sys.argv
+    cargo = _find_cargo()
+    if dual_arg and cargo:
+        for label, args in (
+            ("QuickJS(默认)", ["test", "-p", "rsl-core"]),
+            ("Boa(回退)", ["test", "-p", "rsl-core",
+                          "--no-default-features", "--features", "engine-js,net"]),
+        ):
+            import subprocess
+            r = subprocess.run([cargo, *args], cwd=ROOT, capture_output=True, text=True,
+                               encoding="utf-8", errors="replace")
+            out = (r.stdout or "") + (r.stderr or "")
+            ok_lines = [ln for ln in out.splitlines() if ln.startswith("test result: ok.")]
+            bad = [ln for ln in out.splitlines()
+                   if "FAILED" in ln or ln.startswith("error")]
+            if r.returncode == 0 and ok_lines and not bad:
+                n = 0
+                for ln in ok_lines:
+                    m = re.search(r"ok\.\s*(\d+) passed", ln)
+                    if m:
+                        n += int(m.group(1))
+                print(f"✓ 双引擎门禁 {label}：{n} 测试全绿")
+            else:
+                print(f"✗ 双引擎门禁 {label} 失败（exit={r.returncode}）")
+                for ln in bad[:5]:
+                    print("   ", ln)
+                failures += 1
+    elif dual_arg and not cargo:
+        print("✗ --with-cargo 找不到 cargo（PATH 未配置）")
+        failures += 1
+    else:
+        print("ℹ 双引擎门禁：默认 QuickJS + Boa 回退两套件须全绿"
+              "（cargo test -p rsl-core / --no-default-features --features engine-js,net）")
+
     print("结果:", "全部通过" if failures == 0 else f"{failures} 处问题")
     return 0 if failures == 0 else 1
+
+
+def _find_cargo():
+    """定位 cargo：CARGO 环境变量 → PATH → 本仓 .toolchain。"""
+    import os
+    import shutil
+    c = os.environ.get("CARGO")
+    if c and Path(c).exists():
+        return c
+    p = shutil.which("cargo")
+    if p:
+        return p
+    local = ROOT / ".toolchain/cargo/bin"
+    for exe in ("cargo.exe", "cargo"):
+        cand = local / exe
+        if cand.exists():
+            return str(cand)
+    return None
 
 
 if __name__ == "__main__":

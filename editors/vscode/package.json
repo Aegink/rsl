@@ -1,0 +1,71 @@
+{
+  "name": "rsl-vscode",
+  "displayName": "RSL Reader Source Language",
+  "description": "RSL 书源语言支持：诊断 / hover / 补全 / 定义 / 快速修复（由 rsl-lsp 提供）",
+  "version": "2.0.0",
+  "publisher": "rsl-spec",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rsl-spec/rsl"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "rsl",
+    "book source",
+    "reader",
+    "json"
+  ],
+  "activationEvents": [
+    "onLanguage:json"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "rsl",
+        "aliases": [
+          "RSL Source",
+          "rsl"
+        ],
+        "extensions": [
+          ".rsl.json"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "*.rsl.json",
+        "url": "./schema/rsl.schema.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "json",
+        "path": "./snippets/rsl.json"
+      }
+    ],
+    "configuration": {
+      "title": "RSL",
+      "properties": {
+        "rsl.lspPath": {
+          "type": "string",
+          "default": "rsl-lsp",
+          "description": "rsl-lsp 可执行文件路径（默认取 PATH；也可指向 target/debug/rsl-lsp.exe）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "sync-schema": "node -e \"require('fs').copyFileSync('../../schema/rsl.schema.json','schema/rsl.schema.json')\"",
+    "test": "node test/protocol-smoke.js"
+  },
+  "devDependencies": {}
+}

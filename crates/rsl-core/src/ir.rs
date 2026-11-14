@@ -226,7 +226,7 @@ pub struct RequestIR {
     pub encode_body: Option<String>,
     pub response: RespKind,
     pub engine: String, // http | webview | auto
-    pub web_js: Option<String>,
+    pub web_js: Option<WebJsIR>,
     pub sniff: Option<String>,
     pub auto_upgrade_if: Option<Box<SelectorIR>>,
     pub skip: bool,
@@ -409,6 +409,13 @@ pub struct LoginStepIR {
     pub next_when: Option<Box<SelectorIR>>,
 }
 
+/// C2：webJs 归一化 IR。ctx=true 时宿主向页面暴露受控 __ctx 桥（能力声明制）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebJsIR {
+    pub code: String,
+    pub ctx: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoginIR {
     pub login_type: String,
@@ -418,6 +425,17 @@ pub struct LoginIR {
     pub check_ok: Option<Box<SelectorIR>>,
     pub headers: Vec<(String, Vec<Seg>)>,
     pub is_multi: bool,
+    /// A2：WebView 交互登录块（entry + success）。
+    pub webview: Option<WebviewLoginIR>,
+    /// B1：机械重登次数上限（0 = 关闭）。
+    pub relogin_max: i64,
+}
+
+/// A2 IR：entry URL + 成功判定选择器。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebviewLoginIR {
+    pub entry: String,
+    pub success: Box<SelectorIR>,
 }
 
 // ───────────────────────── 全局块 IR ─────────────────────────

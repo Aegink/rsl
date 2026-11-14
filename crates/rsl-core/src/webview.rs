@@ -34,20 +34,21 @@ pub fn render(
     port: &dyn WebViewPort,
     url: &str,
     headers: &[(String, String)],
-    web_js: Option<&str>,
+    web_js: Option<&crate::ir::WebJsIR>,
     sniff: Option<&str>,
     timeout_ms: i64,
 ) -> Result<WebViewResult, Diagnostic> {
     let r = port.render(&WebViewRequest {
         url: url.to_string(),
         headers: headers.to_vec(),
-        web_js: web_js.map(String::from),
+        web_js: web_js.map(|w| w.code.clone()),
+        web_js_ctx: web_js.map(|w| w.ctx).unwrap_or(false),
         sniff: sniff.map(String::from),
         timeout_ms,
     })?;
     // webJs 必须有非空返回（S§4.8），否则 E_SCRIPT
     if let Some(js) = web_js {
-        if !js.is_empty() && r.body.trim().is_empty() {
+        if !js.code.is_empty() && r.body.trim().is_empty() {
             return Err(Diagnostic::new(
                 Code::EScript,
                 "request.webJs",

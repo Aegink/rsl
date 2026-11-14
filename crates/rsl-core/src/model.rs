@@ -313,6 +313,32 @@ pub struct LoginCfg {
     pub check: Option<CheckCfg>,
     #[serde(default)]
     pub headers: Option<BTreeMap<String, String>>,
+    /// A2（TASK-BOOK-3）：WebView 交互登录（entry + success 判定）；type=webview 时使用。
+    #[serde(rename = "webview", default)]
+    pub webview: Option<WebviewLoginCfg>,
+    /// B1：机械重登上限（默认 0 = 关闭；声明 >2 编译期 E_SCHEMA，V3-D3）。
+    #[serde(rename = "relogin", default)]
+    pub relogin: Option<ReloginCfg>,
+    #[serde(flatten, default)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// A2：login.webview 块。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WebviewLoginCfg {
+    /// 登录入口 URL（宿主 WebView 加载）。
+    pub entry: Option<String>,
+    /// 成功判定（登录后才存在的节点/字段；与 out 选择器同语法）。
+    pub success: Option<Selector>,
+    #[serde(flatten, default)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+/// B1：login.relogin 块。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ReloginCfg {
+    /// 机械重登次数上限（0 = 关闭；≤2，V3-D3）。
+    pub max: Option<i64>,
     #[serde(flatten, default)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -542,8 +568,9 @@ pub struct RequestCfg {
     pub response: Option<String>,
     #[serde(default)]
     pub engine: Option<String>,
+    /// C2（TASK-BOOK-3 V3-D6）：字符串 = 页面自由 JS（现状）；对象 {fn, ctx:true} = 声明制受控桥。
     #[serde(rename = "webJs", default)]
-    pub web_js: Option<String>,
+    pub web_js: Option<Value>,
     #[serde(default)]
     pub sniff: Option<String>,
     #[serde(rename = "autoUpgradeIf", default)]

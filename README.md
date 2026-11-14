@@ -101,7 +101,8 @@ rsl test <src> --cases <yaml>    # L2 fixture 重放回归（不联网；--watch
 rsl record <src> <stage>         # 录制真实响应为 fixture
 rsl convert <legado.json>        # Legado → RSL 草稿 + 不可转清单 + 复核清单
 rsl import <url-or-file>         # 批量拉取→转换→聚合报告→打包（yuancang / 本地 / 通用 URL）
-rsl build / pack                 # 确定性装配 + sha256 manifest / 打包
+rsl build / pack                 # 确定性装配 + sha256 manifest（--inline-jslib 构建期内联远程库）/ 打包
+rsl check <dir> [--probe]        # 批量 lint（--probe 附连通性探活，不落内容）
 rsl fuzz <target> [--minutes n]  # 内置模糊测试（5 个 harness）
 ```
 
@@ -110,8 +111,12 @@ rsl fuzz <target> [--minutes n]  # 内置模糊测试（5 个 harness）
 ```bash
 cargo build -p rsl-lsp && rsl-lsp   # stdio LSP server
 # publishDiagnostics（保存即 lint）/ hover（变量来源契约）/ completion（18 命名空间 + 31 管道步骤）
-# definition（var:book.id → 声明处）
+# definition（var:book.id → 声明处）/ code action（E_REF/E_SELECTOR 确定性快速修复）
 ```
+
+现成 VS Code 扩展：[`editors/vscode/`](editors/vscode/)（诊断/hover/补全/定义/快速修复 +
+snippets + Schema 校验，`npm test` 6 场景协议冒烟）。调试数据面：`rsl run --trace-json`
+（`schema/trace.schema.json`，版本 rsl-trace/1）。
 
 ---
 
@@ -132,10 +137,10 @@ bindings/
   android/        JNI
 ```
 
-`ports.rs` 定义 `Transport / WebViewPort / CookieStore / Clock` 端口——宿主注入，内核自身不联网。
+`ports.rs` 定义 `Transport / WebViewPort / LoginSessionPort / CookieStore / Clock` 端口——宿主注入，内核自身不联网。
 分层硬约束：`selector` 不依赖 `http`、`exec` 不依赖 `stage`、`analyze` 只读 `model + ir + expr`。
-JS 引擎经 `ScriptEngine` 端口注入：默认 Boa（全平台一致），native 可切
-`--features engine-quickjs`（基准：QuickJS/Boa = 2.0–3.4×，语义等价 55/55）。
+JS 引擎经 `ScriptEngine` 端口注入：native 默认 QuickJS（基准 QuickJS/Boa = 2.0–3.4×，
+语义等价 55/55），wasm 维持 Boa；Boa 回退 `--no-default-features --features engine-js,net`。
 
 ---
 
@@ -178,7 +183,7 @@ JS 引擎经 `ScriptEngine` 端口注入：默认 Boa（全平台一致），nat
 | 1 | [`spec/CONCEPTS.md`](spec/CONCEPTS.md) | **先读这个**——10 个"为什么这么设计" |
 | 2 | [`spec/PATTERNS.md`](spec/PATTERNS.md) | 写源时查——任务配方（搜索/目录/正文/分页/登录） |
 | 3 | [`spec/REFERENCE.md`](spec/REFERENCE.md) | 查字段——全字段速查 |
-| 4 | [`spec/ERRORS.md`](spec/ERRORS.md) | 报错时查——31 错误码 + 5 警告码的成因与修法 |
+| 4 | [`spec/ERRORS.md`](spec/ERRORS.md) | 报错时查——31 错误码 + 5 警告码的成因与修法；宿主文案映射表见 [`spec/ERRORS-MESSAGES.md`](spec/ERRORS-MESSAGES.md) |
 | 5 | [`spec/RSL-1.0.md`](spec/RSL-1.0.md) | 写源 / 实现内核必读——**唯一权威**契约正文 |
 | 6 | [`spec/MIGRATION.md`](spec/MIGRATION.md) | 从 Legado 迁——24 字段映射 + 22 条语法翻译 + 不可转清单 |
 | 7 | [`docs/comparison-vs-legado.md`](docs/comparison-vs-legado.md) | 选型评估——与阅读的全面对比 |

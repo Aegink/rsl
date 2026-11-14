@@ -742,12 +742,12 @@ fn check_template_ns_ref(cx: &mut Cx, ns: &str, expr: &str, path: &str, scope: &
         }
         "var" | "" => {
             if !scope.has("var", expr) {
-                cx.err(ref_undef(path, &format!("var:{expr}")));
+                cx.err(ref_undef_fix(path, &format!("var:{expr}"), "var", expr, scope));
             }
         }
         "let" => {
             if !scope.has("let", expr) {
-                cx.err(ref_undef(path, &format!("let:{expr}")));
+                cx.err(ref_undef_fix(path, &format!("let:{expr}"), "let", expr, scope));
             }
         }
         "session" => {
@@ -759,6 +759,32 @@ fn check_template_ns_ref(cx: &mut Cx, ns: &str, expr: &str, path: &str, scope: &
     }
 }
 
+/// E_REF + 确定性 fix（F1）：在作用域可见路径里找最近似 id，建议替换整个 `ns:expr` 引用。
+fn ref_undef_fix(path: &str, show: &str, ns: &str, expr: &str, scope: &refs::Scope) -> Diagnostic {
+    let candidates: Vec<String> = match ns {
+        "var" => scope
+            .paths
+            .iter()
+            .chain(scope.wildcards.iter())
+            .cloned()
+            .collect(),
+        _ => scope.lets.iter().cloned().collect(),
+    };
+    let d = ref_undef(path, show);
+    match nearest_match(expr, &candidates) {
+        Some(good) if ns != "let" || scope.lets.contains(&good) => {
+            let bad_ref = format!("{ns}:{expr}");
+            let good_ref = format!("{ns}:{good}");
+            d.fix(
+                bad_ref.clone(),
+                good_ref.clone(),
+                format!("最近似可见引用：{good_ref}"),
+            )
+        }
+        _ => d,
+    }
+}
+
 fn ref_undef(path: &str, show: &str) -> Diagnostic {
     Diagnostic::new(
         Code::ERef,
@@ -766,6 +792,39 @@ fn ref_undef(path: &str, show: &str) -> Diagnostic {
         format!("{show} 未定义或当前阶段不可见"),
         "对照引用图（COMPILER.md §3.2）：契约字段来自 out.map 声明；let 必须同阶段先声明",
     )
+}
+
+/// 最近似匹配（F1 确定性 fix）：Levenshtein 距离最小者；阈值 = max(1, 长度/2)，
+/// 超阈视为"新引用"而非笔误，不产 fix（假修比不修更糟，V3-D8）。
+pub fn nearest_match(target: &str, candidates: &[String]) -> Option<String> {
+    let t: Vec<char> = target.chars().collect();
+    let limit = (t.len() / 2).max(1);
+    let mut best: Option<(usize, &String)> = None;
+    for c in candidates {
+        if *c == target {
+            continue;
+        }
+        let d = edit_distance(&t, &c.chars().collect::<Vec<_>>());
+        if d <= limit && best.map(|(bd, _)| d < bd).unwrap_or(true) {
+            best = Some((d, c));
+        }
+    }
+    best.map(|(_, c)| c.clone())
+}
+
+fn edit_distance(a: &[char], b: &[char]) -> usize {
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut cur = vec![0usize; b.len() + 1];
+    for i in 1..=a.len() {
+        cur[0] = i;
+        for j in 1..=b.len() {
+            cur[j] = (prev[j] + 1)
+                .min(cur[j - 1] + 1)
+                .min(prev[j - 1] + usize::from(a[i - 1] != b[j - 1]));
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[b.len()]
 }
 
 pub fn compile_expr(
@@ -909,7 +968,7 @@ fn build_request(cx: &mut Cx, cfg: &model::RequestCfg, path: &str, scope: &refs:
             _ => RespKind::Html,
         },
         engine: cfg.engine.clone().unwrap_or_else(|| "http".into()),
-        web_js: cfg.web_js.clone(),
+        web_js: build_web_js(cx, &cfg.web_js, path),
         sniff: cfg.sniff.clone(),
         auto_upgrade_if: match &cfg.auto_upgrade_if {
             Some(s) => compile_selector(cx, s, &format!("{path}.autoUpgradeIf"), scope, None, false)
@@ -2248,14 +2307,14 @@ fn parse_base(cx: &mut Cx, s: &str, path: &str, scope: &refs::Scope, flags: &str
         }
         "var" => {
             if !scope.has("var", rest) {
-                cx.err(ref_undef(path, s));
+                cx.err(ref_undef_fix(path, s, "var", rest, scope));
                 return None;
             }
             Some(BaseSel::Var(rest.to_string()))
         }
         "let" => {
             if !scope.has("let", rest) {
-                cx.err(ref_undef(path, s));
+                cx.err(ref_undef_fix(path, s, "let", rest, scope));
                 return None;
             }
             Some(BaseSel::Let(rest.to_string()))
@@ -2321,14 +2380,79 @@ fn parse_base(cx: &mut Cx, s: &str, path: &str, scope: &refs::Scope, flags: &str
     }
 }
 
+/// C2（V3-D6）：webJs 归一化。字符串 = 自由 JS（ctx:false）；对象 {fn, ctx} = 声明制桥。
+fn build_web_js(cx: &mut Cx, v: &Option<serde_json::Value>, path: &str) -> Option<crate::ir::WebJsIR> {
+    match v {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(s)) => {
+            if s.is_empty() {
+                cx.err(Diagnostic::new(
+                    Code::ESchema,
+                    &format!("{path}.webJs"),
+                    "webJs 为空字符串",
+                    "写页面 JS 代码，或删除该字段",
+                ));
+                return None;
+            }
+            Some(crate::ir::WebJsIR { code: s.clone(), ctx: false })
+        }
+        Some(serde_json::Value::Object(o)) => {
+            let code = match o.get("fn").and_then(|x| x.as_str()) {
+                Some(f) if !f.is_empty() => f.to_string(),
+                _ => {
+                    cx.err(Diagnostic::new(
+                        Code::ESchema,
+                        &format!("{path}.webJs.fn"),
+                        "对象形态 webJs 缺少 fn",
+                        r#"{"webJs": { "fn": "…页面JS…", "ctx": true }}"#,
+                    ));
+                    return None;
+                }
+            };
+            let ctx = o.get("ctx").and_then(|x| x.as_bool()).unwrap_or(false);
+            Some(crate::ir::WebJsIR { code, ctx })
+        }
+        Some(_) => {
+            cx.err(Diagnostic::new(
+                Code::ESchema,
+                &format!("{path}.webJs"),
+                "webJs 只接受字符串或 {fn, ctx} 对象",
+                "字符串 = 页面自由 JS；对象 = 声明制受控桥（V3-D6）",
+            ));
+            None
+        }
+    }
+}
+
 fn selector_ns_err(path: &str, s: &str) -> Diagnostic {
-    Diagnostic::new(
+    let d = Diagnostic::new(
         Code::ESelector,
         path,
         format!("选择器 `{s}` 缺命名空间或前缀未知"),
         format!("18 个合法命名空间：{}", sugar::NAMESPACES.join(" ")),
     )
-    .rule(s)
+    .rule(s);
+    // F1 确定性 fix：前缀笔误 → 最近似命名空间（如 cs: → css:）。无前缀不产 fix。
+    let Some((bad_ns, _)) = s.split_once(':') else {
+        return d;
+    };
+    if bad_ns.is_empty() {
+        return d;
+    }
+    // 候选只取带冒号前缀的命名空间（裸命名空间 text/html/… 不是"补前缀"语义）
+    let candidates: Vec<String> = sugar::NAMESPACES
+        .iter()
+        .filter(|n| n.contains(':'))
+        .map(|n| n.trim_end_matches(':').to_string())
+        .collect();
+    match nearest_match(bad_ns, &candidates) {
+        Some(good) => {
+            let bad_pfx = format!("{bad_ns}:");
+            let good_pfx = format!("{good}:");
+            d.fix(bad_pfx.clone(), good_pfx.clone(), format!("最近似命名空间：{good}"))
+        }
+        None => d,
+    }
 }
 
 // ───────────────────────── 登录编译 ─────────────────────────
@@ -2336,10 +2460,63 @@ fn selector_ns_err(path: &str, s: &str) -> Diagnostic {
 fn build_login(cx: &mut Cx, cfg: &model::LoginCfg) -> Result<LoginIR, ()> {
     warn_unknown(&cfg.extra, "login", cx);
     if let Some(t) = &cfg.login_type {
-        if !matches!(t.as_str(), "form" | "cookie" | "token" | "qr") {
-            cx.err(Diagnostic::new(Code::EEnum, "login.type", format!("`{t}` 不是合法枚举值"), "合法值：form | cookie | token | qr"));
+        if !matches!(t.as_str(), "form" | "cookie" | "token" | "qr" | "webview") {
+            cx.err(Diagnostic::new(Code::EEnum, "login.type", format!("`{t}` 不是合法枚举值"), "合法值：form | cookie | token | qr | webview"));
         }
     }
+    // A2：webview 块编译（entry 必填；success 是选择器数据，交互 UI 不进标准）
+    let webview_ir = match &cfg.webview {
+        Some(w) => {
+            warn_unknown(&w.extra, "login.webview", cx);
+            let entry = match &w.entry {
+                Some(e) if !e.is_empty() => e.clone(),
+                _ => {
+                    cx.err(Diagnostic::new(
+                        Code::ESchema,
+                        "login.webview.entry",
+                        "webview 登录缺少 entry 入口 URL",
+                        "宿主 WebView 加载该 URL 完成登录；如 https://example.com/login",
+                    ));
+                    return Err(());
+                }
+            };
+            let scope = refs::global_scope(&cx.vars);
+            let success = match &w.success {
+                Some(s) => match compile_selector(cx, s, "login.webview.success", &scope, None, false) {
+                    Some(ir) => Box::new(ir),
+                    None => return Err(()),
+                },
+                None => {
+                    cx.err(Diagnostic::new(
+                        Code::ESchema,
+                        "login.webview.success",
+                        "webview 登录缺少 success 成功判定",
+                        "选一个登录后才存在的节点/字段（如 css:div.user-avatar）",
+                    ));
+                    return Err(());
+                }
+            };
+            Some(WebviewLoginIR { entry, success })
+        }
+        None => None,
+    };
+    // B1：relogin 契约（默认 0；>2 → E_SCHEMA，V3-D3 防打站点）
+    let relogin_max = match &cfg.relogin {
+        Some(r) => {
+            warn_unknown(&r.extra, "login.relogin", cx);
+            let max = r.max.unwrap_or(0);
+            if !(0..=2).contains(&max) {
+                cx.err(Diagnostic::new(
+                    Code::ESchema,
+                    "login.relogin.max",
+                    format!("relogin.max 为 {max}，超出上限 2"),
+                    "机械重登硬上限 2 次（防打站点，V3-D3）；0 = 不自动重登",
+                ));
+            }
+            max.clamp(0, 2)
+        }
+        None => 0,
+    };
     let is_multi = cfg.steps.is_some();
     // 互斥（lint 9）
     if is_multi && (cfg.fields.is_some() || cfg.submit.is_some()) {
@@ -2497,6 +2674,8 @@ fn build_login(cx: &mut Cx, cfg: &model::LoginCfg) -> Result<LoginIR, ()> {
         check_ok,
         headers,
         is_multi,
+        webview: webview_ir,
+        relogin_max,
     })
 }
 

@@ -22,3 +22,6 @@ _tmp_*
 scratch/qimao.json
 converted/qimao/
 
+
+# Python 字节码
+__pycache__/
