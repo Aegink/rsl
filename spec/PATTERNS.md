@@ -642,4 +642,4 @@ cases:
 | `ERRORS.md` | 每个错误码的成因与修法 |
 | `EXPRESSIONS.md` | `expr:` 的函数表与限制 |
 | `MIGRATION.md` | 从 Legado 源翻译 |
-| `examples/*.rsl.json` | 完整可跑的三个示例源 |
+| `examples/*.rsl.json` | 完整可跑的五个示例源 |

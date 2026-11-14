@@ -55,7 +55,7 @@ tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
 | `TASK-BOOK.md`（V1） | 基线 | 全部 V1 任务的完成状态与遗留 |
 | `docs/handoff/…02-50.md` | 实施记录 | 裁决 D1–D11、五缺口修复清单 |
 | `scratch/batch_report.json`【实测】 | 压测数据 | 错误码分布（E_SCHEMA 2721 / E_SELECTOR 1735）与不可转字段 Top15 |
-| 七猫 L3 实测 | 端到端证据 | onResponse 解密、动态 IV、签名请求链路 |
+| 真实站点 L3 实测 | 端到端证据 | onResponse 解密、动态 IV、签名请求链路 |
 | 联网研究（§4 落位表，12 来源） | 外部依据 | 每个任务的技术选型依据 |
 
 ---
@@ -67,7 +67,7 @@ tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
 | 方向 | 里程碑 | 交付 | 验收上限 |
 |---|---|---|---|
 | **A 更稳定** | S1 | fuzz harness ×5 + 种子语料 + 属性测试 ×8 + 协作式取消 + panic 审计 | 48h fuzz 零 panic 报告归档 |
-| **B 更好用** | U1 | `rsl-lsp`（诊断/hover/completion/定义跳转）+ `rsl test --watch` + `rsl import` | VS Code 内实时 lint 七猫草稿全流程 |
+| **B 更好用** | U1 | `rsl-lsp`（诊断/hover/completion/定义跳转）+ `rsl test --watch` + `rsl import` | VS Code 内实时 lint 本地草稿全流程 |
 | **C 更强大** | P1 | QuickJS 引擎切换（native）+ JSONPath RFC 9535 + scraper 升级 + 引擎基准套件 | 基准报告 + 31 测试 + 9 YAML 全绿 |
 
 ### 1.2 依赖图
@@ -148,12 +148,12 @@ tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
 | # | 能力 | D1 依据 | D2 研究来源 | D3 现状 | D4 任务 | D5 交付物 | D6 验收 | D7 依赖 | D8 回归 | D9 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 11 | LSP server 骨架 | V1§2.2 lint 20 条 | 【联网】[LSP 3.17](https://microsoft.github.io/language-server-protocol/specification)、[tower-lsp] | 无编辑器集成 | B1 | `crates/rsl-lsp`（tower-lsp） | LSP4J/vscode 冒烟：initialize→diagnostics | B4 | analyze 单测 | P1 |
-| 12 | publishDiagnostics（保存即 lint） | R§13.3 | 【联网】[dbt LSP 博客](https://www.getdbt.com/blog/language-server-protocol)：一个 server 通吃编辑器 | CLI-only | B1 | 诊断推送（错误码+path+hint） | 打开七猫草稿 → 3s 内出诊断 | 11 | lint 输出格式 | P1 |
+| 12 | publishDiagnostics（保存即 lint） | R§13.3 | 【联网】[dbt LSP 博客](https://www.getdbt.com/blog/language-server-protocol)：一个 server 通吃编辑器 | CLI-only | B1 | 诊断推送（错误码+path+hint） | 打开本地草稿 → 3s 内出诊断 | 11 | lint 输出格式 | P1 |
 | 13 | hover：选择器/变量解释 | R§3.2/§5.3 | 【联网】[Gauge DSL+LSP](https://gauge.org/2017/12/07/language-server-protocol-and-dsls) | 无 | B1 | hover 处理器 | hover `var:book.id` → 显示来源契约 | 11 | — | P2 |
 | 14 | completion：命名空间/管道步骤键 | R§3.2/§3.6 | 【联网】同上 | 无 | B1 | completion 列表（18 命名空间 + 31 步骤键） | `css:` 触发 → 补全列表 | 11 | — | P2 |
 | 15 | goto-definition：`var:book.id` → out.map 声明处 | R§5.4 | 【实测】引用图已有（analyze/refs） | 图在内核，无跳转 | B1 | definition 处理器 | 跳转到声明字段行 | 11 | 引用图单测 | P2 |
 | 16 | `rsl test --watch` | V1§3.5 B2 | 【联网】[Contextive LSP 实践](https://dev.to/contextive/experiences-building-a-language-server-protocol-plugin-46b0)（防抖重分析） | CLI-only | B2 | notify 防抖 + 增量重跑 | 改 fixture → 2s 内重跑受影响用例 | — | 9 YAML | P1 |
-| 17 | `rsl import <url-or-file>` | V1§3.5 B3 | 【联网】[AOAOSTAR 聚合 3907 条](https://legado.aoaostar.com)、【实测】yuancang API | batch_test 散在 scratch | B3 | `rsl import` 命令（列表→拉取→转换→报告→--pack） | 对 yuancang 单页 100 源一键完成 | B5 | convert 单测 | P1 |
+| 17 | `rsl import <url-or-file>` | V1§3.5 B3 | 【联网】[AOAOSTAR 聚合 3907 条](聚合站 API（AOAOSTAR 类服务）)、【实测】yuancang API | batch_test 散在 scratch | B3 | `rsl import` 命令（列表→拉取→转换→报告→--pack） | 对 yuancang 单页 100 源一键完成 | B5 | convert 单测 | P1 |
 | 18 | import 统计报告（错误码/不可转分布） | 【实测】batch_report.json | 【实测】E_SCHEMA 2721 | 散在 scratch | B3 | 内置聚合（migration 聚合报告） | 报告 JSON 与 batch_report 同构 | 17 | — | P1 |
 
 #### C 更强大（19–24）
@@ -161,7 +161,7 @@ tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
 | # | 能力 | D1 依据 | D2 研究来源 | D3 现状 | D4 任务 | D5 交付物 | D6 验收 | D7 依赖 | D8 回归 | D9 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 19 | QuickJS 引擎切换（native） | V1 T4.4 端口 | 【联网】[js-engine-benchmark 2025](https://dev.to/ahaoboy/js-engine-benchmark-2025-7-8-163b)：QuickJS ≈2× Boa | Boa（D6 裁决） | C1 | `ScriptEngine` 的 quickjs 实现（feature 切换） | 基准：qmDecrypt 等价负载 ≥1.5× Boa；31 测试全绿 | C5 | l2_smoke/九 YAML | P1 |
-| 20 | JSONPath RFC 9535 全合规 | R§3.2 json: / §9.2 selectorLevel 9535 | 【联网】[jsonpath-rust](https://github.com/besok/jsonpath-rust)（[0.7.5](https://crates.io/crates/jsonpath-rust/0.7.5)）RFC 合规 + 函数扩展；[RFC 9535](https://datatracker.ietf.org/doc/rfc9535/) | 手写子集（无过滤/函数） | C2 | 替换 selector/jsonpath.rs 内部实现（接口不变） | 合规测试集全过 + 七猫/测试源全绿；`[?@.x==false]` 可用 | — | 全部 json: 用例 | P1 |
+| 20 | JSONPath RFC 9535 全合规 | R§3.2 json: / §9.2 selectorLevel 9535 | 【联网】[jsonpath-rust](https://github.com/besok/jsonpath-rust)（[0.7.5](https://crates.io/crates/jsonpath-rust/0.7.5)）RFC 合规 + 函数扩展；[RFC 9535](https://datatracker.ietf.org/doc/rfc9535/) | 手写子集（无过滤/函数） | C2 | 替换 selector/jsonpath.rs 内部实现（接口不变） | 合规测试集全过 + 真实源/测试源全绿；`[?@.x==false]` 可用 | — | 全部 json: 用例 | P1 |
 | 21 | scraper/selectors 升级（CSS4 :has()） | R§9.2 css level 4 | 【联网】[selectors 0.26 已支持 :has()](https://crates.io/crates/selectors)、[htmlq #65 panic 案例](https://github.com/mgdm/htmlq/issues/65) | scraper 0.20（selectors 旧 pin） | C3 | 升级 + 兼容修复 | `:has()`/`:is()` 用例通过 + 31 测试全绿 | — | l2_smoke | P2 |
 | 22 | lol_html 大页流式（spike） | R§8.2 maxBytes | 【联网】[lol_html 常量内存](https://github.com/cloudflare/lol_html)、[docs.rs #876](https://github.com/rust-lang/docs.rs/issues/876)：远快于 html5ever | 全 DOM 物化 | C4 | spike 报告 + 原型（超阈值正文提取） | spike 结论：可行/不可行 + 数据 | — | content 用例 | P3 |
 | 23 | 引擎基准测试套件 | V1§0.3 L-infra | 【联网】[Boa nightly 基准实践] | 无基准 | C5 | `benches/engine_bench.rs`（criterion） | 归档报告：签名/解密/正则三负载 | C1 | — | P1 |
@@ -219,7 +219,7 @@ tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
 | ID | 目标 | 输入 | 输出 | 依赖 | 验收（可执行） | 引用 |
 |---|---|---|---|---|---|---|
 | **C1** | QuickJS native 引擎：spike `rquickjs 0.9`/`quick-js` 在 windows-gnu 的可用性（H1）→ 实现 `ScriptEngine` quickjs 后端（feature `engine-quickjs`），两档隔离/确定性计量语义与 boa 相同 | boa 实现作参照 | `script/quickjs_engine.rs` + feature 切换 | C5 | 基准：qmDecrypt 等价负载 ≥1.5× Boa；31 测试全绿（切换后） | §2.2#19、H1 |
-| **C2** | JSONPath RFC 9535：`jsonpath-rust` 替换手写 evaluator；`where` 语义映射白名单（H2）；解析错误 → E_SELECTOR | selector/jsonpath.rs | 内部替换 + 兼容层 | A4 | RFC 合规测试子集全过；七猫/测试源 json: 全绿；新增 `[?@.vip==false]` 过滤用例 | §2.2#20、H2 |
+| **C2** | JSONPath RFC 9535：`jsonpath-rust` 替换手写 evaluator；`where` 语义映射白名单（H2）；解析错误 → E_SELECTOR | selector/jsonpath.rs | 内部替换 + 兼容层 | A4 | RFC 合规测试子集全过；真实源/测试源 json: 全绿；新增 `[?@.vip==false]` 过滤用例 | §2.2#20、H2 |
 | **C3** | scraper/selectors 升级至含 :has() 版本（H5）；兼容修复 | Cargo.toml | 版本升级 + 破坏修复 | A4 | `:has()`/`:is()`/`:where()` 新用例；31 测试 + 9 YAML 全绿 | §2.2#21 |
 | **C4** | lol_html 大页流式 spike（未决 C4） | lol_html 文档 | spike 报告 + 原型分支 | — | spike 结论文档：500KB 页内存/耗时对比 DOM 方案；可行则出集成设计 | §2.2#22 |
 | **C5** | 引擎基准套件：criterion 三负载（qmDecrypt AES-CBC / signParams md5 链 / cleanTitle 正则链）×（boa/quickjs） | C1 | `benches/engine_bench.rs` + 归档报告 | C1 | 报告含中位数/均值/方差；QuickJS ≥1.5× Boa 结论成立与否明确 | §2.2#23 |
@@ -241,9 +241,9 @@ tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
 | [selectors crate](https://crates.io/crates/selectors) / [htmlq #65](https://github.com/mgdm/htmlq/issues/65) | 【联网】 | :has() 需新版 selectors（0.26）；旧版 panic | C3 |
 | [LSP 3.17](https://microsoft.github.io/language-server-protocol/specification) | 【联网】 | publishDiagnostics/pull 诊断规范 | B1 |
 | [Gauge LSP 案例](https://gauge.org/2017/12/07/language-server-protocol-and-dsls) / [dbt LSP](https://www.getdbt.com/blog/language-server-protocol) / [Contextive 实践](https://dev.to/contextive/experiences-building-a-language-server-protocol-plugin-46b0) | 【联网】 | 一 server 通吃编辑器；防抖重分析 | B1、B2 |
-| [AOAOSTAR 聚合](https://legado.aoaostar.com) / [Legado 规则说明](https://mgz0227.github.io/The-tutorial-of-Legado/Rule/source.html) | 【联网】 | 生态源持续更新；JSOUP 方言规范未变 | B3 |
+| [AOAOSTAR 聚合](聚合站 API（AOAOSTAR 类服务）) / [Legado 规则说明](https://mgz0227.github.io/The-tutorial-of-Legado/Rule/source.html) | 【联网】 | 生态源持续更新；JSOUP 方言规范未变 | B3 |
 | 【实测】batch_report.json | 【实测】 | 4916/4917 convert；E_SCHEMA 2721 / E_SELECTOR 1735；不可转 Top：content 2341 / kind 1177 / bookUrl 877 | 全部 |
-| 【实测】七猫 L3 | 【实测】 | onResponse+ctx.crypto 动态 IV 解密链路成立；第二章 VIP 拒绝为 API 限制 | C1 基准负载取材 |
+| 【实测】真实站点 L3 | 【实测】 | onResponse+ctx.crypto 动态 IV 解密链路成立；第二章 VIP 拒绝为 API 限制 | C1 基准负载取材 |
 
 ---
 
@@ -284,7 +284,7 @@ tags: [rsl, taskbook, v2, fuzzing, lsp, quickjs, jsonpath, research]
 
 | 负载 | 输入 | 判据 |
 |---|---|---|
-| qmDecrypt | 七猫真实 content（b64→AES-CBC 解密→UTF-8） | QuickJS/Boa 耗时比 ≥1.5 |
+| qmDecrypt | 真实站点 content（b64→AES-CBC 解密→UTF-8） | QuickJS/Boa 耗时比 ≥1.5 |
 | signParams | 4 参数排序拼接 + md5 ×1000 | 同上 |
 | cleanTitle | 《》[] 剥离 + trim ×10000 | 同上 |
 

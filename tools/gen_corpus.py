@@ -3,7 +3,7 @@
 
 产出 fuzz/corpus/：
 - neg_XX.json   15 编译期负例（复刻 crates/rsl-core/tests/m1_compile.rs）+ 版本负例
-- pos_XX.json   examples/ 全部示例 + 七猫真实源
+- pos_XX.json   examples/ 全部示例 + 真实站点源
 - case_NNN.json scratch/sources_raw 真实 Legado 源 → rsl convert → URL 消毒
 - edge_NN.json  边界构造（空对象/深嵌套/超长串/坏版本/重复键…）
 
@@ -325,12 +325,12 @@ def main():
         if f.exists():
             shutil.copy(f, CORPUS / f"pos_{f.name}")
             pos += 1
-    # 七猫真实源：消毒后入库（S§17 / V2-D1 —— converted/ 不入库，此处为合规子集）
-    qm = ROOT / "本地语料（不入库）"
+    # 真实站点源：消毒后入库（S§17 / V2-D1 —— converted/ 不入库，此处为合规子集）
+    qm = ROOT / "converted/example/example-rsl.json"
     if qm.exists():
         doc = json.loads(qm.read_text(encoding="utf-8"))
         clean, _, _ = sanitize(doc)
-        (CORPUS / "pos_qimao-rsl.json").write_text(
+        (CORPUS / "pos_example-rsl.json").write_text(
             json.dumps(clean, ensure_ascii=False), encoding="utf-8")
         pos += 1
     print(f"正例: {pos}")

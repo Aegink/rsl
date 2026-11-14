@@ -48,7 +48,7 @@ tags: [rsl, taskbook, v4, debugger, serve, editor, explore, tauri]
 | 调研报告（调§1~§9） | 本文全部任务的证据链 |
 | TASK-BOOK-3 表单编辑器（已交付） | 编辑轨底座（form-model / ZH 文案门禁 / WebView 模式） |
 | rsl-lsp（手写 JSON-RPC）+ trace.schema 先例 | 薄壳与 schema 稳定性先例 |
-| 实测基线 | 21 表单单测 / npm 双测试 / 全门禁 / 双引擎 93+93 |
+| 实测基线 | 21 表单单测 / npm 双测试 / 全门禁 / 双引擎 103+103（交付时点 93+93） |
 
 ---
 
@@ -150,7 +150,7 @@ E3 Tauri（P2，消费 T2/T3）
 | T5 | notify 7 已在 rsl-cli（test --watch） | 独立模式文件监听零新依赖 |
 | T6 | V3 表单模式（spawn/手写 rpc.js） | 复用扩展工程（lib/rpc.js/resolveLspPath 先例）；F6 已占表单→调试键另设（H5） |
 | T7 | ERR§ 36 码 | 零新错误码；E_UNSUPPORTED 语义复用（webview/登录能力缺失） |
-| E1 | V3 ZH 文案门禁（表单 21 测试） | explore 分区文案同门禁自动锁定；$defs=32 不变（表单只读 schema，不增 $def） |
+| E1 | V3 ZH 文案门禁（表单 28 测试） | explore 分区文案同门禁自动锁定；$defs=32 不变（表单只读 schema，不增 $def） |
 | E3 | 调§5 Legado Tauri 先例 | P2 细则另立（H2）；P1 协议（rsl-debug/1 + serve API）为其地基，不返工 |
 
 ---
@@ -185,7 +185,7 @@ E3 Tauri（P2，消费 T2/T3）
 
 | 来源 | 等级 | 关键结论 | 落位 |
 |---|---|---|---|
-| [legado 技能包·发现模块](file:///C:/Users/wangh/.zcode/skills/legado/references/knowledge/阅读书源引擎/阅读书源引擎-发现模块.md) | 【源码】 | ExploreRule 10 字段与 SearchRule 同构；exploreUrl 四写法；ExploreKind 5 交互类型；动态发现范式与翻页占位符坑 | 调§2；T3/T4/E1 |
+| 本地技能包知识库·发现模块 | 【源码】 | ExploreRule 10 字段与 SearchRule 同构；exploreUrl 四写法；ExploreKind 5 交互类型；动态发现范式与翻页占位符坑 | 调§2；T3/T4/E1 |
 | [KERNEL-COMPARE.md](KERNEL-COMPARE.md) | 【源码】 | F.47 发现结构 RSL 强；§2.12 编排；exploreUrl 展开与回退 | 调§2.2/§4.1；E1 |
 | 用户截图（阅读 iOS 调试页 ×7） | 【实测】 | 四 tab 字段清单/五阶段下拉/链式交互/发现两级 tab | T3/T4 验收基准 |
 | [gedoor/legado（BookSourceDebugActivity）](https://github.com/gedoor/legado) | 【源码】 | 调试 Activity 位置与形态 | 调§3.1 |
@@ -211,7 +211,7 @@ python -I tools/check.py                                # 含 rsl-debug.schema �
 # T2/T3 serve + 前端
 python -I tools/serve_smoke.py                          # 起服务/四数据面/token/回环断言/回收
 # T6 扩展
-cd editors/vscode && npm test                           # 协议 6/6 + 表单 21 + serve 集成
+cd editors/vscode && npm test                           # 协议 6/6 + 表单 28 + serve 集成
 # E1/E2
 node editors/vscode/test/form-model-test.js             # explore 往返 + 文案门禁
 ```

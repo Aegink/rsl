@@ -3,7 +3,7 @@
 - 日期：2026-11-14
 - 套件：`crates/rsl-core/benches/engine_bench.rs`（criterion 0.5）
 - 运行：`cargo bench -p rsl-core --features engine-quickjs --bench engine_bench -- --sample-size 20 --warm-up-time 1 --measurement-time 3`
-- 负载取材：七猫 L3 真实链路（C1 基准负载取材依据，任务书 §4）
+- 负载取材：真实站点 L3 链路（C1 基准负载取材依据，任务书 §4）
 
 ## 结果（中位数 [低 高]，3 负载 × 2 引擎）
 

@@ -174,7 +174,7 @@ fn eval_or_undefined<'js>(ctx: &Ctx<'js>, expr: &str) -> JsValue<'js> {
 
 /// Value → JS 桥字符串：String 值直传（不带引号），其它类型 JSON 序列化。
 /// 与 boa json_to_js 同语义——V2 曾误用 serde_json::to_string 包了一切，
-/// 使 http 响应文本 / crypto.sym 结果在 JS 侧带引号（回归，七猫 L3 复测暴露）。
+/// 使 http 响应文本 / crypto.sym 结果在 JS 侧带引号（回归，真实站点 L3 复测暴露）。
 fn value_to_bridge_string(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),

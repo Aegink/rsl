@@ -17,7 +17,7 @@ tags: [rsl, audit, decisions]
 
 - 源码切片：`legado-E/analyzeRule/*.kt`、`BookSource.kt`、`BookContent.kt`、`JsExtensions.kt`（四版本对比）
 - 知识库：`03_Knowledge/阅读书源引擎/`（20 篇源码级模块笔记）、`03_Knowledge/Legado书源/`（24 篇语法/配置层）
-- 真实源样本：番茄本地鉴权版、源阅 X-QD 聚合、书山聚合 v5.45、沐凡 PyFQ-Go
+- 真实源样本：四类现网源样本（本地研究资料）
 
 ---
 

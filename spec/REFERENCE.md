@@ -174,6 +174,7 @@ tags: [rsl, spec, reference]
 | `session:<key>` | `session:token` | 会话 | any | 全部（逐章允许读） |
 | `token:<name>` | `token:auth` | 登录产出 | str | 全部；**逐章禁用**（`E_COST`） |
 | `cookie:<name>` | `cookie:sessionid` | Cookie（只读） | str | 全部；**逐章禁用**（`E_COST`） |
+| `cache:<name>` | `cache:meta` | 命名缓存（分层） | any | 全部（写经 `cache` 块；读任意） |
 | `lib:<fn>` | `lib:cleanTitle` | — | any | 全部；逐章仅 `lib.pure` |
 | `expr:<表达式>` | `expr:page - 1` | — | any | 全部；逐章禁 `now()` / `rand()` |
 

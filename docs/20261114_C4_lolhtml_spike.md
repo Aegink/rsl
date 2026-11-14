@@ -31,4 +31,4 @@
 
 - lol_html 常量内存与速度优势：【联网】https://github.com/cloudflare/lol_html 、
   https://github.com/rust-lang/docs.rs/issues/876 、https://www.zenrows.com/blog/rust-html-parser
-- 现内核 L3 实测 0.24s/页已达标（七猫 L3）——性能非当前瓶颈，故不集成（V2-D5）
+- 现内核 L3 实测 0.24s/页已达标（真实站点 L3）——性能非当前瓶颈，故不集成（V2-D5）

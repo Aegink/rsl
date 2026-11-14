@@ -19,7 +19,7 @@ tags: [rsl, comparison, legado, architecture, migration]
 | 侧 | 对象 | 证据 |
 |---|---|---|
 | 阅读 | Legado（Rimchars Archive v15，内核 ≈27,400 行 Kotlin） | `KERNEL-COMPARE.md` §1.1，源码行号可查 |
-| RSL | 本仓库 v2.0（内核 `rsl-core` 15,745 行 Rust + CLI/LSP/绑定，合计 20,722 行） | `crates/` 实测 `wc -l`；57+57 双引擎测试 |
+| RSL | 本仓库 v2.0（内核 `rsl-core` 15,745 行 Rust + CLI/LSP/绑定，合计 20,722 行） | `crates/` 实测 `wc -l`；103+103 双引擎测试 |
 
 RSL **不是 Legado 的 fork，也不做规则兼容**：规则语言重新设计，存量源经一次性转换器迁移
 （`rsl convert`，10,671 真实源实测 99.98% 可转换）。两者可以长期共存。
@@ -37,7 +37,7 @@ RSL **不是 Legado 的 fork，也不做规则兼容**：规则语言重新设�
 | 跨端 | Android（Kotlin 内核 + WebView 绑定 93 处注入） | 一份内核四个端：CLI / iOS（Swift）/ Android（JNI）/ WASM，golden 三端逐字节一致 |
 | 正则 | Java `Pattern`（含回溯，可被打挂） | RE2 子集（无回溯，线性时间），反向引用编译期拒绝 |
 | 源格式审计 | 字符串拼接，难以静态分析 | 规则是数据：可 diff / 可 lint / 可 fuzz / 可回归 |
-| 工具链 | App 内调试日志 | 9 条 CLI 命令 + 20 条 lint + 属性测试 + fuzz 713 万轮零 panic + 三端 golden |
+| 工具链 | App 内调试日志 | 13 个 CLI 命令 + 20 条 lint + 属性测试 + fuzz 713 万轮零 panic + 三端 golden |
 | 生态存量 | 海量现网源 + 教程 | 一次性 `rsl convert`（实测 4916/4917 文件可转换）+ 迁移手册 |
 
 ---
@@ -195,7 +195,7 @@ RSL 把合并写进契约：
 | 字体反爬 | ✅（JS 手写映射） | ✅ | `font` 步骤 + `typeMap` |
 | 多源合并 | ❌（UI 层硬编码） | ✅ | `merge` 契约（键/跨桶/排序） |
 | 章节排序自动判向 | ✅ | ✅ | `toc.order=auto` |
-| 详情→目录同页复用 | ❌（重复请求） | ✅ | `toc.reuseDetailHtml`（实测七猫省 1 请求/章） |
+| 详情→目录同页复用 | ❌（重复请求） | ✅ | `toc.reuseDetailHtml`（实测真实站点省 1 请求/章） |
 | 正文分页拼接 | ✅ | ✅ | `out.nextPage` 自动循环（受 `maxPages`） |
 | 占位保护 | ❌ | ✅ | `protect`（replace 期间防误清洗，`E_PROTECT_LOST` 可诊断） |
 | 取消执行 | ⚠️（App 层协程取消） | ✅ | 协作式 CancelToken，边界级 partial + `E_CANCELLED` |
@@ -205,7 +205,7 @@ RSL 把合并写进契约：
 | CSS4 `:has()/:is()` | ✅（Jsoup） | ✅ | scraper 0.29，forgiving 处理 |
 | JSONPath | ✅（JS 手写或 `$.`） | ✅ | RFC 9535：手写子集 + jsonpath-rust 兜底 |
 | XPath | ✅（Jsoup） | ✅ | 子集：`//`、`[@attr]`、`[n]`、`text()` |
-| Schema 校验 | ❌ | ✅ | JSON Schema 2020-12（29 `$defs`） |
+| Schema 校验 | ❌ | ✅ | JSON Schema 2020-12（32 `$defs`） |
 | 静态 lint | ❌ | ✅ | 20 条规则（`rsl lint`） |
 | 模糊测试 | ❌ | ✅ | 5 harness；compile_str 60min/713 万轮零 panic |
 | 属性测试 | ❌ | ✅ | proptest 8 条铁律 |
@@ -257,9 +257,9 @@ RSL 的失败是一张表（[`spec/ERRORS.md`](../spec/ERRORS.md)，31 错误码
 
 | 实验 | 结果 | 出处 |
 |---|---|---|
-| 真实商业 API 端到端（七猫：md5 签名 + AES-CBC 动态 IV 解密） | 全链路跑通，正文页 ≈0.24s | `docs/handoff/handoff_2026-11-14_02-50.md` |
-| 10,671 真实书源批量压测 | convert 成功 4,916/4,917 文件（99.98%）；lint 直通 485 源 | `docs/handoff/handoff_2026-11-14_02-50.md` |
-| fuzz（compile_str，含结构化变异） | 60 分钟 / 7,134,278 轮 / 零 panic | `scratch/fuzz/report/compile_str.json` |
+| 真实商业 API 端到端（md5 签名 + AES-CBC 动态 IV 解密） | 全链路跑通，正文页 ≈0.24s | `docs/20261115_开源前全量真源压测报告.md` |
+| 10,671 真实书源批量压测 | convert 成功 4,916/4,917 文件（99.98%）；lint 直通 485 源 | `docs/20261115_开源前全量真源压测报告.md` |
+| fuzz（compile_str，含结构化变异） | 60 分钟 / 7,134,278 轮 / 零 panic | `fuzz 报告归档（L-infra 产物）` |
 | 属性测试 | 8 条铁律 × 1000 case 全绿 | `crates/rsl-core/tests/properties.rs` |
 | JS 引擎基准（qmDecrypt/signParams/cleanTitle） | QuickJS = Boa 的 2.00× / 2.04× / 3.44× | `docs/20261114_C5_engine_bench报告.md` |
 | 双引擎语义等价 | 55/55 同套件全绿（Boa 与 QuickJS） | `cargo test -p rsl-core --features engine-quickjs` |

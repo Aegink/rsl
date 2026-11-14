@@ -1,5 +1,5 @@
 //! C5 引擎基准（TASK-BOOK-2 §3.3 C5 / §5.4）：三负载 ×（boa/quickjs）。
-//! 负载取材七猫 L3 真实链路：qmDecrypt（b64→AES-CBC 解密）、signParams（md5 链）、
+//! 负载取材真实站点 L3 真实链路：qmDecrypt（b64→AES-CBC 解密）、signParams（md5 链）、
 //! cleanTitle（正则剥离链）。每次迭代 = 完整引擎调用（含上下文创建，同生产路径）。
 //!
 //! 运行：
@@ -51,7 +51,7 @@ function cleanTitle(s) {
 "#;
 
 fn make_items() -> Value {
-    // 50 项：b64 数据 ~200 字节/项（七猫章节 payload 量级）
+    // 50 项：b64 数据 ~200 字节/项（真实站点章节 payload 量级）
     let mut items = vec![];
     for i in 0..50 {
         items.push(json!({

@@ -75,7 +75,7 @@
 ```bash
 # Rust stable（1.85+，edition 2021）
 cargo build --release -p rsl-cli
-# 产物：target/release/rsl(.exe) —— 九命令单二进制
+# 产物：target/release/rsl(.exe) —— 十三命令单二进制
 ```
 
 <details>
@@ -90,7 +90,7 @@ cargo build --release --target x86_64-pc-windows-gnu -p rsl-cli
 
 </details>
 
-### 九命令
+### 命令（13 个）
 
 ```bash
 rsl lint <src.rsl.json>          # 静态检查（20 条 lint + 编译期诊断，不联网）
@@ -104,6 +104,7 @@ rsl import <url-or-file>         # 批量拉取→转换→聚合报告→打包
 rsl build / pack                 # 确定性装配 + sha256 manifest（--inline-jslib 构建期内联远程库）/ 打包
 rsl check <dir> [--probe]        # 批量 lint（--probe 附连通性探活，不落内容）
 rsl fuzz <target> [--minutes n]  # 内置模糊测试（5 个 harness）
+rsl serve [--port N] [--token t] # 本机回环调试服务（/debug/run 源文本随请求携带 + /debug/lint + 静态前端）
 ```
 
 ### 编辑器支持
@@ -152,14 +153,14 @@ JS 引擎经 `ScriptEngine` 端口注入：native 默认 QuickJS（基准 QuickJ
 
 | 项 | 结果 |
 |---|---|
-| 测试 | `cargo test -p rsl-core` **57 通过**；`--features engine-quickjs` 同套件 **57 通过**（双引擎语义等价） |
+| 测试 | `cargo test -p rsl-core` **103 通过**；Boa 回退侧同套件 **103 通过**（双引擎语义等价，[任务书](spec/TASK-BOOK-4.md) V4/V5 后基线） |
 | 模糊测试 | 5 harness；compile_str **60 分钟 / 7,134,278 轮零 panic**（结构化变异 + 语料 1022 文件） |
 | 属性测试 | 8 条铁律 × 1000 case（永不裸空串 / 降级不清空主结果 / severity↔code 全表一致…） |
 | 三端一致性 | golden SHA-256：CLI ↔ WASM 逐字节一致（`tools/conformance.py`） |
-| 真实源压测 | 10,671 源：convert 99.98% 可转换；lint 直通 485 源 |
-| 真实商业 API | 七猫全链路（md5 签名 + AES-CBC 动态 IV），正文页 ≈0.24s |
+| 真实源压测 | **4991 个真实阅读源全量**（非 Legado 方言单列）：convert 99.98%、编译**零 panic**、失败全部为 Legado 方言残留（[压测报告](docs/20261115_开源前全量真源压测报告.md)） |
+| 真实商业 API | 全链路（md5 签名 + AES-CBC 动态 IV），正文页 ≈0.24s |
 | panic 边界 | lib 路径 unwrap/expect 归零 + CLI/LSP 入口 catch_unwind（[审计清单](docs/20261114_A4_panic审计清单.md)） |
-| 门禁 | check（schema+示例+fuzz 报告归档）/ consistency（文档计数）/ conformance（golden）/ expr_proto 四道 CI 门禁 |
+| 门禁 | check（schema+示例+rsl-debug/1 样例+fuzz 报告归档）/ consistency（文档计数）/ conformance（golden）/ expr_proto / LSP 冒烟 6/6 / serve 冒烟 42 / npm 6+28+9 —— 全绿 |
 
 内核规模：`rsl-core` 15,745 行 Rust（对比阅读内核 ≈27,400 行 Kotlin，见
 [对比文档 §7](docs/comparison-vs-legado.md#7-稳定性与性能实测数据)）。
@@ -226,10 +227,10 @@ JS 引擎经 `ScriptEngine` 端口注入：native 默认 QuickJS（基准 QuickJ
 见 [CONTRIBUTING.md](CONTRIBUTING.md)。改动必须通过四道门禁：
 
 ```bash
-python tools/check.py               # schema + 示例 + fuzz/基准归档存在性
+python tools/check.py               # schema + 示例 + rsl-debug/1 样例 + fuzz/基准归档存在性
 python tools/consistency.py         # 文档计数对齐（S↔Z↔E↔R）
 python tools/conformance.py check   # 三端 golden
-cargo test -p rsl-core              # 57 测试（--features engine-quickjs 亦须全绿）
+cargo test -p rsl-core              # 103 测试（Boa 回退侧亦须全绿）
 ```
 
 ## License

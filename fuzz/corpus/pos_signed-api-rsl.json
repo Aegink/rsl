@@ -1,0 +1,245 @@
+{
+ "rsl": "2.0",
+ "id": "api.example.com",
+ "name": "签名 API 示例站（fuzz 语料）",
+ "type": "novel",
+ "baseUrl": "https://api.example.com",
+ "match": {
+  "detail": "re:^https://api\\.example\\.com/book/\\d+"
+ },
+ "requires": {
+  "features": [
+   "js",
+   "crypto"
+  ],
+  "crypto": [
+   "md5",
+   "aes-cbc"
+  ],
+  "selectorLevel": {
+   "jsonpath": "9535"
+  }
+ },
+ "http": {
+  "headers": {
+   "app-version": "80400",
+   "platform": "android",
+   "reg": "0",
+   "AUTHORIZATION": "",
+   "application-id": "com.example.reader",
+   "net-env": "1",
+   "channel": "unknown",
+   "qm-params": "",
+   "sign": "${expr:md5('AUTHORIZATION=app-version=80400application-id=com.example.readerchannel=unknownnet-env=1platform=androidqm-params=reg=0' + '<SIGN_KEY>')}"
+  }
+ },
+ "vars": {
+  "imei": {
+   "value": "<DEVICE_ID>",
+   "label": "设备标识",
+   "persist": true
+  }
+ },
+ "lib": {
+  "pure": "",
+  "ctx": "function decodeResp(ctx, text) {\n  try {\n    var r = JSON.parse(text);\n    var content = r && r.data && r.data.content;\n    if (!content) return text;\n    var hex = __ctx.b64hex(String(content));\n    if (hex.length <= 32) return text;\n    var outB64 = __ctx.crypto.sym('aes-cbc', 'decrypt', '<AES_KEY>', 'hex:' + hex.substring(0, 32), 'hex:' + hex.substring(32));\n    r.data.content = __ctx.b64utf8(outB64);\n    return JSON.stringify(r);\n  } catch (e) {\n    throw new Error('decodeResp: ' + e);\n  }\n}"
+ },
+ "stages": {
+  "search": {
+   "request": {
+    "url": "https://api.example.com/search/v1/words",
+    "params": {
+     "gender": "3",
+     "imei": "var:imei",
+     "page": "var:page",
+     "wd": "var:kw",
+     "sign": "expr:md5('gender=3imei=<DEVICE_ID>page=' + str(page) + 'wd=' + var:kw + '<SIGN_KEY>')"
+    },
+    "response": "json"
+   },
+   "out": {
+    "list": "json:$.data.books",
+    "map": {
+     "name": {
+      "$": "json:$.title",
+      "transform": [
+       {
+        "trim": true
+       }
+      ]
+     },
+     "url": {
+      "$": "json:$.id"
+     },
+     "author": {
+      "$": "json:$.original_author",
+      "optional": true,
+      "default": ""
+     },
+     "cover": {
+      "$": "json:$.image_link",
+      "optional": true
+     },
+     "intro": {
+      "$": "json:$.intro",
+      "optional": true,
+      "default": ""
+     }
+    },
+    "emptyOk": true
+   },
+   "paginate": {
+    "kind": "page",
+    "pageVar": "page",
+    "max": 3
+   }
+  },
+  "detail": {
+   "request": {
+    "url": "https://api.example.com/api/v5/book/detail",
+    "params": {
+     "id": "var:book.url",
+     "imei": "var:imei",
+     "teeny_mode": "0",
+     "sign": "expr:md5('id=' + var:book.url + 'imei=<DEVICE_ID>teeny_mode=0' + '<SIGN_KEY>')"
+    },
+    "response": "json"
+   },
+   "out": {
+    "name": {
+     "$": "json:$.data.book.title"
+    },
+    "author": {
+     "$": "json:$.data.book.author",
+     "optional": true,
+     "default": ""
+    },
+    "intro": {
+     "$": "json:$.data.book.intro",
+     "optional": true,
+     "default": ""
+    },
+    "cover": {
+     "$": "json:$.data.book.image_link",
+     "optional": true
+    },
+    "tocUrl": {
+     "$": "json:$.data.book.id",
+     "optional": true
+    }
+   }
+  },
+  "toc": {
+   "request": {
+    "url": "https://api2.example.com/api/v1/chapter/chapter-list",
+    "params": {
+     "id": "var:book.tocUrl",
+     "sign": "expr:md5('id=' + var:book.tocUrl + '<SIGN_KEY>')"
+    },
+    "response": "json"
+   },
+   "order": "auto",
+   "out": {
+    "list": "json:$.data.chapter_lists",
+    "map": {
+     "title": {
+      "$": "json:$.title"
+     },
+     "url": {
+      "$": "json:$.id"
+     },
+     "isVip": {
+      "$": "json:$.is_vip",
+      "optional": true
+     }
+    },
+    "emptyOk": true
+   }
+  },
+  "content": {
+   "request": {
+    "url": "https://api2.example.com/api/v1/chapter/content",
+    "params": {
+     "chapterId": "var:chapter.url",
+     "id": "var:book.url",
+     "sign": "expr:md5('chapterId=' + var:chapter.url + 'id=' + var:book.url + '<SIGN_KEY>')"
+    },
+    "response": "json"
+   },
+   "script": {
+    "onResponse": {
+     "fn": "lib:decodeResp",
+     "ctx": true
+    }
+   },
+   "out": {
+    "title": {
+     "$": "json:$.data.chapter_title",
+     "optional": true
+    },
+    "content": {
+     "$": "json:$.data.content",
+     "paragraphs": {
+      "split": "line"
+     }
+    }
+   }
+  },
+  "explore": {
+   "groups": [
+    {
+     "title": "榜单",
+     "groups": [
+      {
+       "title": "名著",
+       "params": {
+        "tab_id": "610"
+       }
+      },
+      {
+       "title": "言情",
+       "params": {
+        "tab_id": "745"
+       }
+      }
+     ]
+    }
+   ],
+   "request": {
+    "url": "https://api.example.com/api/v1/publish/quote",
+    "params": {
+     "page": "var:page",
+     "tab_id": "var:group.params.tab_id",
+     "sign": "expr:md5('page=' + str(page) + 'tab_id=' + var:group.params.tab_id + '<SIGN_KEY>')"
+    },
+    "response": "json"
+   },
+   "out": {
+    "list": "json:$.data.books",
+    "map": {
+     "name": {
+      "$": "json:$.title"
+     },
+     "url": {
+      "$": "json:$.id"
+     },
+     "author": {
+      "$": "json:$.sub_title",
+      "optional": true,
+      "default": ""
+     }
+    },
+    "emptyOk": true
+   }
+  }
+ },
+ "limits": {
+  "maxBytes": 2097152,
+  "timeoutMs": 20000
+ },
+ "meta": {
+  "author": "rsl-spec",
+  "license": "CC0",
+  "comment": "fuzz 语料：@js 签名 + AES-CBC onResponse + 动态 IV 结构样本（全合成，example.com）"
+ }
+}

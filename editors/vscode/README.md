@@ -45,7 +45,7 @@ VS Code 内：把本目录放入 `%USERPROFILE%\.vscode\extensions\rsl-spec.rsl-
 ## 手工验收清单（H1，需桌面环境）
 
 > 2026-11-14 实测（自动化键鼠 + 截屏，VS Code + --extensionDevelopmentPath，
-> 演示文件 scratch/vscode-demo/demo-broken.rsl.json 含 `var:book.urll` 笔误）：
+> 演示文件 编辑器内置示例源 含 `var:book.urll` 笔误）：
 
 - [x] 打开源 → 诊断出现：E_REF **精确定位到笔误 token**（行 45 列 17，问题面板含 hint）
       ——[`docs/images/20261114_vscode_h1_诊断.png`](../docs/images/20261114_vscode_h1_诊断.png)

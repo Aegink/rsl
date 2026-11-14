@@ -10,7 +10,7 @@ fn got(v: &Value, path: &str) -> Vec<Value> {
 
 #[test]
 fn subset_unchanged() {
-    // 手写子集语义保持（D8 回归：七猫/测试源全绿）
+    // 手写子集语义保持（D8 回归：真实源/测试源全绿）
     let doc = json!({"data": {"book": {"title": "书"}}, "arr": [1, 2, 3]});
     assert_eq!(got(&doc, "$.data.book.title"), vec![json!("书")]);
     assert_eq!(got(&doc, "$.arr[1]"), vec![json!(2)]);

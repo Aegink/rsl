@@ -80,7 +80,7 @@ Legado 生态里"一个源写 8 个站点"很常见，结果是任何一个小�
 
 ## 4. 选择器是显式命名空间
 
-`§3.2` 一共 17 个命名空间：`css:` `xpath:` `json:` `re:` `text` `owntext` `html` `tag` `attr:` `const:` `var:` `let:` `session:` `token:` `cookie:` `lib:` `expr:`。**不存在"无前缀默认解释"**——这是 RSL 相对 Legado 最重要的一处改动。
+`§3.2` 一共 18 个命名空间：`css:` `xpath:` `json:` `re:` `text` `owntext` `html` `tag` `attr:` `const:` `var:` `let:` `session:` `token:` `cookie:` `cache:` `lib:` `expr:`。**不存在"无前缀默认解释"**——这是 RSL 相对 Legado 最重要的一处改动。
 
 Legado 要做 8 级前缀猜测：`/` 开头当 XPath、`$.` 开头当 JSONPath、`@@` 去掉前缀、`@` 取属性……问题是 `/` 既可能是路径也可能是正则字面量的一部分，`##` 一出现整条链的语义就整体切换。猜测需要上下文，而上下文在字符串里没有位置。命名空间把这个判断挪到**加载那一刻**：编译器看见前缀就知道语义，看见没有前缀就报 `E_SELECTOR`。
 

@@ -1,71 +1,59 @@
 # RSL 路线图
 
-> 本文件是**计划**，不是规范。规范见 `spec/RSL-1.0.md`，决策依据见 `spec/GAP-AUDIT.md`。
-> 上一版 `REVISION-PLAN.md` 的内容已全部并入规范与审计，该文件已删除。
+> 本文件是**计划与交付状态**，不是规范。规范见 `spec/RSL-1.0.md`，决策依据见 `spec/GAP-AUDIT.md`，
+> 派工史见 `spec/TASK-BOOK*.md`（V1–V5）。
 
 ---
 
-## 当前状态（2026-11-14）
+## 当前状态（2026-11-15，开源发布版）
 
 | 里程碑 | 状态 |
 |---|---|
-| M1 编译器 / M2 传输 / M3 执行器 / M4 脚本表达式 | ✅ 完成（`TASK-BOOK.md`，commit 历史见 §1.1） |
-| M5 测试工具链（CLI 九命令 / YAML 用例 / fixture / convert / 门禁） | ✅ 完成 |
-| M6 绑定（C ABI / Swift / JNI / WASM，golden 三端一致） | ✅ 完成（真机链接验证待外部环境） |
-| 增强：更稳定（fuzz / proptest / 取消 / panic 审计） | ✅ 完成（`TASK-BOOK-2.md` §7.4） |
-| 增强：更好用（LSP / watch / import） | ✅ 完成（VS Code GUI 截图待桌面环境） |
-| 增强：更强大（QuickJS / JSONPath 9535 / CSS4 / 基准） | ✅ 完成 |
-| M6 编辑器（可视化规则编辑，Web） | ⬜ 未开始（后续） |
+| V1 内核（编译器/传输/执行器/脚本表达式） | ✅ 完成（`TASK-BOOK.md` M1–M6） |
+| V1 工具链（CLI 13 命令 / YAML 用例 / fixture / convert / 确定性 build / 门禁） | ✅ 完成 |
+| V1 绑定（C ABI / Swift RSLKit / JNI / WASM，三端 golden 一致） | ✅ 完成（真机链接验证待外部环境） |
+| V2 增强（fuzz 713 万轮 / proptest / 取消 / panic 审计 / LSP / watch / import / QuickJS 默认 / JSONPath 9535 / CSS4 / 基准） | ✅ 完成（`TASK-BOOK-2.md`） |
+| V3 增补 22 条（登录会话 / 机械重登 / 诊断 fix / 编辑器 / inline-jslib / 受控远程 / QuickJS 默认化） | ✅ 完成（`TASK-BOOK-3.md`） |
+| V4 编辑+调试（rsl-debug/1 四数据面 / rsl serve 回环 / web 前端五页四tab+日志 / 链式·实时·诊断直通 / explore 编辑露出 / VS Code F6+F7） | ✅ 完成（`TASK-BOOK-4.md`） |
+| V5 完整编辑器闭环（源库/编辑器/调试器三视图一体 + 三层主题 + 分类日志复制导出 + /debug/lint + /lang/schema + 真实站点 L3 五链路全通） | ✅ 完成（`TASK-BOOK-5.md`） |
+| V2+ 可视化规则编辑器（表单） | ✅ 完成（VS Code F6 表单 + 浏览器编辑器视图，28 表单测试） |
+| P2：Tauri 桌面壳 + 真 WebViewPort（webview/登录阶段的桌面真实渲染） | ⬜ 评审后另立细则（`TASK-BOOK-5.md` P2 节） |
+| P2：订阅源（rss）契约 | ⬜ 不纳入（GAP-AUDIT 立场） |
 
----
+## 质量门禁（当前基线）
 
-## 已完成（文档层，2026-11-20）
-
-| 项 | 产出 |
+| 门禁 | 基线 |
 |---|---|
-| 语言契约 v2.0 | `spec/RSL-1.0.md` 整体重写：`login.steps` 多步登录、`merge` 多源合并、`script.onResponse`、`paginate.enumerate`、`reuseDetailHtml`、`content.direct`、`protect`、`transform.zip`、`range` 负步长、`stopIf.noNew`、lint 20 条 |
-| Schema | `schema/rsl.schema.json` 重写，根级允许未知字段，**29 个 `$defs`**（含 `login`/`merge`/`retry`） |
-| 示例 | **4 个**：`novel-html` / `comic-api` / `video-login` / `aggregate-merge`，全部通过 Schema 校验 |
-| 编译器设计 | `spec/COMPILER.md` 重写：`E_COST`、引用图含契约字段、lib 两档纯度、步骤图校验、lint 20 条映射，规模 **12600 行** |
-| 表达式规范 | `spec/EXPRESSIONS.md` 重写：只保留摘要与编码，对称加解密走 `transform.crypto` |
-| 差距审计 | `spec/GAP-AUDIT.md`：A1–A44 决策矩阵 + 反例清单 |
-| 派生文档 | `CONCEPTS` / `REFERENCE` / `PATTERNS` / `ERRORS` / `MIGRATION` 五份新增，按"学/写/查/错/迁"分工 |
-| 原型 | `prototype/expr_proto.py` 与 `EXPRESSIONS.md` 同步 |
+| cargo 双引擎（QuickJS 默认 / Boa 回退） | **103 + 103** 全绿 |
+| 全功能压测（**4991 真实阅读源**，离线全量） | convert 99.98% · **零 panic** · 失败全部为 Legado 方言残留（报告见 `docs/20261115_开源前全量真源压测报告.md`） |
+| serve / 前端冒烟 | 42 用例 |
+| npm（扩展协议 / 表单 / serve 集成） | 6 + 28 + 9 |
+| LSP 冒烟 | 6/6 |
+| expr 原型 | 18 + 9 |
+| fuzz | 713 万轮零 panic |
+| 三端一致性 | CLI ↔ WASM golden 逐字节一致 |
+| 真实站点 L3 | 某商业阅读 API 五链路（签名 MD5 / AES-CBC 解密 / 1663 章 / 动态榜单）全通 |
 
----
+## 语言契约现状
 
-## 下一步
+| 项 | 状态 |
+|---|---|
+| 语言契约 v2.0（`spec/RSL-1.0.md`） | Active：login.steps 多步登录、merge 多源合并、script.onResponse、paginate 四种、reuseDetailHtml、content.direct、protect、transform.zip/range、stopIf.noNew、lint 20 条 |
+| Schema | `schema/rsl.schema.json`：**32 个 `$defs`**；调试产物 `schema/rsl-debug.schema.json`（rsl-debug/1）与 trace `schema/trace.schema.json`（rsl-trace/1）独立冻结 |
+| 示例 | **5 个**（novel-html / comic-api / video-login / aggregate-merge / edge-cases）+ `examples/debug/` 调试样例产物 + `examples/fixtures/` 合规夹具，全部过 Schema 校验 |
+| 编辑器 | VS Code 扩展（诊断/hover/补全/定义/快速修复/表单 F6/调试器 F7）+ 浏览器编辑台（源库/编辑器/调试器三视图，`editors/web-debug/`） |
+| 错误码 | **36 码**（`ERRORS.md` 码表 + `ERRORS-MESSAGES.md` 文案表 + consistency 门禁对齐） |
 
-顺序不要乱：**编译器 → 执行器 → 测试 → 绑定 → 工具链**。先写 UI 或先写 HTTP 都会让语义检查流于形式。
+## 未决（需要实测或评审后定）
 
-| 里程碑 | 产出 | 验收 |
-|---|---|---|
-| **M1 编译器** | `crates/rsl-core`：解析 → Schema → 语义分析 → IR；`rsl compile` / `rsl lint` | 3 个示例 0 错误；8 个负例全部报出正确错误码（见 `COMPILER.md §7`） |
-| **M2 执行器** | `rsl-http` + `exec` + `stage`：五阶段、三种分页、预算计量 | `rsl run <src> search --kw 测试` 对 1 个真实站点返回 ≥1 条 |
-| **M3 测试** | `rsl record` / `rsl test` / `--trace` | 同一源在站点改版后能定位到具体字段 |
-| **M4 绑定** | `rsl-ffi` + `RSLKit`（Swift）+ WASM | iOS 直接调用；三端同 fixture 输出一致 |
-| **M5 工具链** | `rsl build`（确定性装配）/ `rsl pack` / `rsl convert` | `build` 产物逐字节可复现；转换器给出不可转换报告 |
-| **M6 编辑器** | 可视化规则编辑器（Web） | 点选生成规则，与 JSON 1:1 映射 |
+1. `E_COST` 阈值的真实源分布验证（已有 4991 源压测数据可复核）。
+2. `hostStages` 宿主支持矩阵：CLI 模拟之外的真机矩阵。
+3. `requires.crypto` 各端库可用性核对（Rust ✓ / Swift 待真机 / WASM ✓）。
+4. A34/A35/A36/A38/A39/A44 等 GAP-AUDIT 挂起项的实测验证（多数已由真实源 L3 侧面验证）。
+5. **E3 Tauri 桌面壳 + G8 真 WebViewPort**（P2 评审后另立细则）。
+6. 订阅源（rss）契约（不纳入，GAP-AUDIT 立场）。
 
----
-
-## 未决问题（需要实测后定）
-
-1. `E_COST` 的判定阈值：`lib.pure` 在逐章规则里的步数是否要单独设限。
-2. `hostStages` 的宿主支持矩阵：先由 CLI 模拟，再进真机。
-3. `requires.crypto` 各端库可用性核对（Rust / Swift / WASM）。
-4. `paginate.cursor` 在"服务端返回 offset 而非游标"场景下的写法是否需要 `offsetVar` 语法糖。
-5. **A34 `toc.reuseDetailHtml`**：建议直接进 1.1（详情与目录同 URL 时复用响应，省一次请求，不引入新概念）。待 M1 编译器加字段后由真实源验证命中率。
-6. **A35 `transform.protect`**：`<usehtml>` 这类"这段原文不许被后续规则碰到"的需求，是用 `protect` 列表还是引入占位符语法，需先看真实源里有多少处需要保护。
-7. **A36 用户级净化层的归属**：`ContentProcessor` 在阅读里是 339 行独立管线，RSL 决定写成"宿主职责 + `hostStages` 端口"。若宿主不实现，源无法自救——需在 1.1 里明确这是宿主必做项而非可选。
-8. **A38 多源搜索合并语义**：阅读的 4 桶 + `origins.size` 降序是**一个具体算法**，RSL 现在是空白。要么写进规范（宿主必做），要么承认三端会分叉。倾向写进规范。
-9. **A39 多步骤登录**：`login.fields` 静态表单装不下"账号密码 → 验证码 → 短信码"。`login.steps[]` 是唯一干净出路，但要先确认有多少真实站点需要两步以上。
-10. **A44 `script.after` 的作用对象**：必须定死是"原始响应字节"还是"解析结果"。这条不定，`loginCheckJs` / `bodyJs` 的等价性就永远悬着。
-11. **A41 纯 URL 正文的示例**：`request.skip` + `out.content: "var:chapter.url"` 零成本，等改 1.1 时顺手补进 §4.2.1。
-
----
-
-## 质量门禁
+## 质量门禁纪律
 
 - 任何规范改动必须先更新 `GAP-AUDIT.md` 的决策记录，再改正文。
 - 任何示例改动必须过 `python tools/check.py`（schema + 示例一致性），CI 里同一条命令。

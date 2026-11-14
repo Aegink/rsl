@@ -4,7 +4,7 @@ type: plan
 status: active
 title: RSL 任务书 v5（完整编辑器：管理 → 编辑 → 调试一体闭环）
 parent: rsl-language
-tags: [rsl, taskbook, v5, editor, debugger, logs, dark-mode, sources, qimao]
+tags: [rsl, taskbook, v5, editor, debugger, logs, dark-mode, sources, example]
 ---
 
 # RSL 任务书 v5（完整编辑器闭环）
@@ -60,10 +60,10 @@ tags: [rsl, taskbook, v5, editor, debugger, logs, dark-mode, sources, qimao]
 - 去硬编码：全量替换 web-debug/style.css 与 form.css 的字面色值为变量；布局向阅读三栏靠拢（左输入/主区/右结果已接近，微调间距与层级）。
 - 美化：卡片阴影/圆角统一、按钮层级（primary/普通/图标）、表格斑马纹、滚动条样式。
 
-## 2. 七猫真实站点 L3（用户诉求 7）—— ✅ 本轮已完成（记录）
-- 用户源 用户提供的本地 Legado 源文件（不入库）→ `scratch/_qimao/qimao.legado.json`。
+## 2. 某商业阅读 API 真实站点 L3（用户诉求 7）—— ✅ 本轮已完成（记录）
+- 用户源 用户提供的本地 Legado 源文件（不入库）→ `scratch/_example/example.legado.json`。
 - convert 诚实上报 15 项需人工（@js: 签名/68KB 动态发现/@put 链步）——符合 MIGRATION 语义。
-- **手工重写 `scratch/_qimao/qimao.rsl.json`**（不入库，S§17）：签名=md5(排序拼接+key) 全 expr:md5 表达（params 排序即 BTreeMap 序）；
+- **手工重写 `scratch/_example/example.rsl.json`**（不入库，S§17）：签名=md5(排序拼接+key) 全 expr:md5 表达（params 排序即 BTreeMap 序）；
   正文 AES-128-CBC（key <站点正文密钥（不入库）>，IV=base64解码前16字节）经 script.onResponse（ctx 档）+ b64hex 桥解密。
 - **内核通用修复**（非站点妥协，用户红线）：
   1. `crypto_sym` JS 桥回归：V2 用 `serde_json::to_string(&Value)` 包一切 → JS 侧拿到带引号 base64（Boa 时代 json_to_js 无此问题）→ `value_to_bridge_string`（String 直传）——任何源受益。
@@ -80,7 +80,7 @@ tags: [rsl, taskbook, v5, editor, debugger, logs, dark-mode, sources, qimao]
 | 1 | T1 互通 | form-panel/debug-panel 互跳 + 命令 | npm 测试 + 真机 F6/F7 互跳截图 |
 | 2 | T5 UI | style.css/form.css 变量化 + 暗色三层 | 双主题截图对比 + 门禁 |
 | 3 | T3 日志 | app.js 日志面板（分类 chips/复制/导出） | 真机截图 + 复制功能验证 |
-| 4 | T4 管理 | app.js 源库 tab（导入/列表/进入编辑或调试） | 真机导入七猫→列表→一键调试 |
+| 4 | T4 管理 | app.js 源库 tab（导入/列表/进入编辑或调试） | 真机导入真实站点源→列表→一键调试 |
 | 5 | 收尾 | 门禁全绿 + notes/handoff + commit | 全部 |
 
 ## 4. 版本表
