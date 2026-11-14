@@ -271,3 +271,63 @@ table.head-table code { font: 12px Consolas, monospace; word-break: break-all; c
 #view-editor .banner { margin: 10px 16px 0; }
 #view-editor #diags { margin: 8px 0 4px; }
 #view-editor #fields { padding-bottom: 10px; }
+
+/* ═══ 编辑器视图美化（TASK-BOOK-5 补：对齐编辑台设计语言，仅作用域 #view-editor） ══ */
+#view-editor { padding: 0 0 0; }
+#view-editor { max-width: 1040px; margin: 0 auto; width: 100%; padding-top: 6px; }
+#view-editor #banner {
+  margin: 12px 0 10px; border-radius: 10px; border: none;
+  background: linear-gradient(135deg, var(--accent-soft), var(--card));
+  box-shadow: var(--shadow); padding: 12px 16px; font-size: 13px;
+}
+#view-editor #banner::before {
+  content: "✎ "; font-weight: 700; color: var(--accent);
+}
+#view-editor #diags { margin: 0 0 10px; }
+#view-editor .sec {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  margin: 0 0 12px; box-shadow: 0 1px 4px rgba(30,70,140,.07); overflow: hidden;
+}
+#view-editor .sec summary {
+  padding: 11px 16px; font-weight: 600; font-size: 14px; color: var(--fg-strong);
+  cursor: pointer; background: var(--bg); list-style: none; user-select: none;
+  border-bottom: 1px solid var(--border-soft);
+}
+#view-editor .sec summary::before { content: "▸ "; color: var(--accent); }
+#view-editor .sec[open] summary::before { content: "▾ "; }
+#view-editor .sec summary:hover { background: var(--accent-soft); }
+#view-editor .sec .body { padding: 12px 16px 16px; }
+#view-editor .group-desc { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
+#view-editor .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+#view-editor .lbl { font-weight: 600; color: var(--fg); min-width: 128px; font-size: 13px; }
+#view-editor input, #view-editor textarea, #view-editor select {
+  background: var(--card); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 9px; font: inherit; font-size: 13px;
+}
+#view-editor input:focus, #view-editor textarea:focus, #view-editor select:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft);
+}
+#view-editor input[type="text"].expr { flex: 1; min-width: 200px; font: 12px Consolas, monospace; }
+#view-editor textarea.code { width: 100%; min-height: 74px; font: 12px/1.5 Consolas, monospace; }
+#view-editor .desc { color: var(--muted); font-size: 12px; margin: -4px 0 10px 128px; }
+#view-editor .rule-field { border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; background: var(--bg); }
+#view-editor .badge { background: var(--accent-soft); color: var(--fg-strong); border-radius: 3px; padding: 0 5px; font-size: 11px; margin-left: 6px; }
+#view-editor .badge.diag-badge { background: var(--danger-soft); color: var(--danger); }
+#view-editor .icon-btn {
+  background: var(--card); color: var(--fg-strong); border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+#view-editor .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+#view-editor .kv-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+#view-editor .kv-row input { flex: 1; }
+#view-editor .step-row { display: flex; gap: 6px; margin: 4px 0 4px 20px; align-items: center; }
+#view-editor #ed-toolbar {
+  position: sticky; bottom: 0; max-width: 980px; margin: 0 auto; padding: 10px 18px 12px;
+  background: var(--card); border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center;
+  box-shadow: 0 -2px 10px rgba(30,70,140,.08);
+}
+#view-editor #btnApply { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; padding: 7px 18px; }
+#view-editor #btnGenerate { padding: 7px 14px; }
+#view-editor .muted { font-size: 12px; }
+#view-editor label.has-diag { color: var(--danger); }
+#view-editor .diag-flash { outline: 2px solid var(--accent); border-radius: 4px; }

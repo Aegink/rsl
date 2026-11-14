@@ -77,6 +77,8 @@ function chainInputs() {
     inputs.book = { ...state.book };
   } else if (state.stage === 'content') {
     inputs.chapter = { ...state.chapter };
+    // 七猫类源正文签名需要 var:book.url（bid）——随链式一并注入
+    if (state.book) inputs.book = { ...state.book };
   }
   return inputs;
 }
@@ -472,7 +474,7 @@ function renderVisualToc(body, out) {
 
 function renderVisualContent(body, out) {
   const page = el('div', 'content-page');
-  page.appendChild(el('h2', undefined, out.title || '（无章节标题）'));
+  if (out.title) page.appendChild(el('h2', undefined, out.title)); // 空标题不渲染（空值口径）
   const paras = Array.isArray(out.content) ? out.content : [String(out.content || '')];
   for (const p of paras) page.appendChild(el('p', undefined, p));
   body.appendChild(page);
