@@ -1,5 +1,6 @@
 //! T3.6–T3.12 阶段编排：五阶段契约、四种分页、登录推进、缓存分层、预算、多源合并、trace。
 
+pub mod debug;
 pub mod login;
 pub mod merge;
 
@@ -619,6 +620,15 @@ pub fn send_request(
         timeout_ms: timeout,
         max_bytes: src.limits.max_bytes,
     };
+    // rsl-debug/1 捕获（T1）：请求侧信息在发送前成形；响应侧由各分支写入。
+    let template = debug::request_template(req, &src.base_url);
+    let detect = src.requires.features.iter().any(|f| f == "detect");
+    let push_record = |cx: &ExecCx, response: Option<crate::exec::ctx::DebugRespInfo>, attempts: u64| {
+        cx.debug.borrow_mut().push(crate::exec::ctx::DebugRecord {
+            request: debug_req_for_capture(&template, &http_req, req, attempts),
+            response,
+        });
+    };
     match req.engine.as_str() {
         "webview" => {
             let port = cx.webview.ok_or_else(|| crate::webview::unsupported(&format!("{path}.engine")))?;
@@ -627,13 +637,15 @@ pub fn send_request(
             if !r.sniffed.is_empty() {
                 cx.vars.insert("sniffed".into(), json!(r.sniffed));
             }
-            Ok(HttpResponse {
+            let resp = HttpResponse {
                 status: 200,
                 headers: vec![],
                 body: r.body.into_bytes(),
                 final_url: http_req.url.clone(),
                 ms: 0,
-            })
+            };
+            push_record(&cx, Some(debug::capture_response(req, &resp, detect, path)), 1);
+            Ok(resp)
         }
         _ => {
             // auto：先 HTTP（autoUpgradeIf 命中升级一次的逻辑由调用方在得到 HTML 后处理）
@@ -642,8 +654,18 @@ pub fn send_request(
                 transport: cx.transport,
                 http: &src.http,
                 rate: RateLimiter::from_ir(&src.http),
+                last_attempts: 0,
             };
-            let resp = client.send(&http_req, &retry, &src.id)?;
+            let resp = match client.send(&http_req, &retry, &src.id) {
+                Ok(r) => r,
+                Err(d) => {
+                    // 网络层失败：协议标头保留请求侧真实数据，响应缺失（诚实降级）
+                    push_record(&cx, None, client.last_attempts);
+                    return Err(d);
+                }
+            };
+            // HTTP 错误态也捕获（协议标头 tab 要能看到真实状态码，T7）
+            push_record(&cx, Some(debug::capture_response(req, &resp, detect, path)), client.last_attempts);
             if resp.status == 0 || (resp.status >= 400) {
                 return Err(Diagnostic::new(
                     Code::EHttp,
@@ -656,6 +678,34 @@ pub fn send_request(
             }
             Ok(resp)
         }
+    }
+}
+
+/// 捕获用请求侧信息（send_request 内部；engine 分派前调用）。
+fn debug_req_for_capture(
+    template: &str,
+    http_req: &HttpRequest,
+    req: &RequestIR,
+    attempts: u64,
+) -> crate::exec::ctx::DebugReqInfo {
+    let parse = match req.response {
+        RespKind::Json => "json",
+        RespKind::Bytes => "bytes",
+        RespKind::Text => "text",
+        RespKind::Html => "html",
+    };
+    let engine = match req.engine.as_str() {
+        "webview" => "webview",
+        _ => "http",
+    };
+    crate::exec::ctx::DebugReqInfo {
+        template: template.to_string(),
+        url: http_req.url.clone(),
+        method: req.method.clone(),
+        headers: http_req.headers.clone(),
+        engine: engine.to_string(),
+        parse: parse.to_string(),
+        attempts,
     }
 }
 

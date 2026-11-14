@@ -70,6 +70,8 @@ impl Transport for UreqTransport {
         match resp {
             Ok(r) => {
                 let status = r.status();
+                // 重定向链终点（必须在 into_reader 消费 r 之前取，T1 协议标头）
+                let final_url = r.get_url().to_string();
                 let headers: Vec<(String, String)> = r
                     .headers_names()
                     .iter()
@@ -97,7 +99,7 @@ impl Transport for UreqTransport {
                     status: status,
                     headers,
                     body,
-                    final_url: url,
+                    final_url,
                     ms,
                 })
             }
@@ -143,6 +145,8 @@ pub struct HttpClient<'a> {
     pub http: &'a HttpIR,
     /// 每次发送前的节流钩子（RateLimiter）。
     pub rate: Option<RateLimiter>,
+    /// 最近一次 send 的实际尝试次数（含重试；rsl-debug 捕获用，T1）。
+    pub last_attempts: u64,
 }
 
 #[derive(Default, Clone)]
@@ -194,6 +198,7 @@ impl<'a> HttpClient<'a> {
                 Ok(resp) => retry.on.contains(&(resp.status as i64)),
             };
             if !need_retry || attempt >= retry.times {
+                self.last_attempts = attempt as u64 + 1;
                 return result;
             }
             let _ = &result;

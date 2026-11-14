@@ -24,6 +24,57 @@ pub struct TraceEntry {
     pub sample: Option<String>,
 }
 
+// ───────────────────── rsl-debug/1 捕获（TASK-BOOK-4 T1，四 tab 数据面） ─────────────────────
+// 与 TraceEntry 同层：exec 不依赖 stage；记录由 stage 层 send_request 写入。
+
+/// 请求侧记录（协议标头 tab：原始地址/请求地址/重定向/重试/引擎/方式/解析方式）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DebugReqInfo {
+    /// 原始地址（模板形态，如 var:line/search）。
+    pub template: String,
+    /// 请求地址（模板渲染 + params 编码后的实际值）。
+    pub url: String,
+    /// 请求方式 GET/POST/PUT/DELETE/HEAD。
+    pub method: String,
+    /// 实际发送的请求头（全局 + 登录 + 阶段合并）。
+    pub headers: Vec<(String, String)>,
+    /// 引擎：http / webview。
+    pub engine: String,
+    /// 解析方式：json / html / text / bytes。
+    pub parse: String,
+    /// 实际尝试次数（含重试）。
+    pub attempts: u64,
+}
+
+/// 响应侧记录。预览 ≤256KB + sha256 + truncated（V4-D4：大响应不进产物）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DebugRespInfo {
+    pub status: u16,
+    /// 响应头（协议标头 tab 原样展示）。
+    pub headers: Vec<(String, String)>,
+    pub ms: u64,
+    /// 最终 URL（重定向后；与请求地址不同即发生了重定向）。
+    pub final_url: String,
+    /// 原始体字节数（截断前的实际值）。
+    pub body_bytes: usize,
+    /// 原始体 sha256（hex）。
+    pub sha256: String,
+    /// 预览被截断（原始体 > 256KB 预算）。
+    pub truncated: bool,
+    /// 二进制响应（bytes 声明）——preview 为 null。
+    pub binary: bool,
+    /// 解码文本预览（≤256KB；解码失败时 lossy 兜底，二进制时 null）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview: Option<String>,
+}
+
+/// 单次请求-响应配对（分页时多条；网络层失败时 response 为 null）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DebugRecord {
+    pub request: DebugReqInfo,
+    pub response: Option<DebugRespInfo>,
+}
+
 /// 运行期上下文。
 pub struct ExecCx<'a> {
     pub src: &'a CompiledSource,
@@ -47,6 +98,8 @@ pub struct ExecCx<'a> {
     pub cookie_scope: String,
     pub clock: &'a dyn Clock,
     pub trace: RefCell<Vec<TraceEntry>>,
+    /// rsl-debug/1 捕获（TASK-BOOK-4 T1）：本阶段全部请求-响应配对。
+    pub debug: RefCell<Vec<DebugRecord>>,
     pub warnings: RefCell<Vec<Diagnostic>>,
     /// libSteps 计量（确定性计量，S§8.4）。
     pub lib_steps: std::cell::Cell<i64>,
@@ -82,6 +135,7 @@ impl<'a> ExecCx<'a> {
             cookie_scope: src.id.clone(),
             clock,
             trace: RefCell::new(vec![]),
+            debug: RefCell::new(vec![]),
             warnings: RefCell::new(vec![]),
             lib_steps: std::cell::Cell::new(0),
             stage: RefCell::new(String::new()),

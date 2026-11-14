@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rsl-debug/1",
+  "title": "RSL 调试产物（rsl run --debug-json 与 rsl serve /debug/run 共用，TASK-BOOK-4 T1/T2）",
+  "description": "H 稳定性承诺（沿 trace.schema/1 先例，V4-D5）：版本字段 rsl-debug/1 冻结；仅允许追加可选字段，不重命名不删除。四数据面：请求/响应（协议标头）、响应预览（原始数据）、out（解析结果）、diagnostics+trace（诊断顶栏）。",
+  "type": "object",
+  "required": ["schema", "source", "sourceId", "stage", "ok", "elapsed_ms", "inputs", "request", "response", "requests", "out", "partial", "trace", "diagnostics"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "rsl-debug/1" },
+    "source": { "type": "string", "description": "源标识（CLI 为文件路径；serve 为请求携带的来源标记）" },
+    "sourceId": { "type": "string", "description": "源 id（R§2）" },
+    "stage": { "type": "string", "description": "被执行的阶段名（search/explore/detail/toc/content/hostStages id）" },
+    "ok": { "type": "boolean", "description": "阶段是否成功（失败时 error 必存在，out 为 null）" },
+    "elapsed_ms": { "type": "integer", "minimum": 0, "description": "阶段总耗时（毫秒，实测值不保证跨机一致）" },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "本次运行注入的 RunInputs 回显（R§5：kw/page/book/chapter/group/filter）",
+      "properties": {
+        "kw": { "type": "string" },
+        "page": { "type": "integer" },
+        "book": { "type": "object" },
+        "chapter": { "type": "object" },
+        "group": { "description": "explore 分组（R§6.3 groups 树条目或标题）" },
+        "filter": { "type": "object", "description": "explore 筛选取值（var:filter.<key>）" }
+      }
+    },
+    "request": {
+      "description": "最后一次请求（便利字段；纯 const/skip 阶段为 null）",
+      "oneOf": [{ "$ref": "#/$defs/request" }, { "type": "null" }]
+    },
+    "response": {
+      "description": "最后一次响应（网络层失败时 null）",
+      "oneOf": [{ "$ref": "#/$defs/response" }, { "type": "null" }]
+    },
+    "requests": {
+      "type": "array",
+      "description": "本阶段全部请求-响应配对（分页时多条，按发送顺序）",
+      "items": {
+        "type": "object",
+        "required": ["request", "response"],
+        "additionalProperties": false,
+        "properties": {
+          "request": { "oneOf": [{ "$ref": "#/$defs/request" }, { "type": "null" }] },
+          "response": { "oneOf": [{ "$ref": "#/$defs/response" }, { "type": "null" }] }
+        }
+      }
+    },
+    "out": { "description": "解析结果（阶段 out 契约值；失败时 null）" },
+    "partial": { "type": "boolean", "description": "E_CANCELLED 部分结果标记（S§12.5）" },
+    "trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stage", "step", "rule", "matched", "ms", "bridge"],
+        "additionalProperties": false,
+        "properties": {
+          "stage": { "type": "string" },
+          "step": { "type": "string" },
+          "rule": { "type": "string" },
+          "matched": { "type": "integer", "minimum": 0 },
+          "ms": { "type": "integer", "minimum": 0 },
+          "bridge": { "type": "integer", "minimum": 0 },
+          "sample": { "type": "string" }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "description": "运行期警告/部分结果诊断（Diagnostic 全结构直通，T7）",
+      "items": { "$ref": "#/$defs/diagnostic" }
+    },
+    "error": {
+      "$ref": "#/$defs/diagnostic",
+      "description": "阶段失败时的诊断（ok=false 时必存在）"
+    }
+  },
+  "$defs": {
+    "request": {
+      "type": "object",
+      "required": ["template", "url", "method", "headers", "engine", "parse", "attempts"],
+      "additionalProperties": false,
+      "properties": {
+        "template": { "type": "string", "description": "原始地址（模板形态，如 var:line/search）" },
+        "url": { "type": "string", "description": "请求地址（渲染 + params 编码后实际发送值）" },
+        "method": { "type": "string", "description": "请求方式" },
+        "headers": {
+          "type": "array",
+          "description": "实际发送的请求头（全局+登录+阶段合并）",
+          "items": {
+            "type": "array",
+            "items": [{ "type": "string" }, { "type": "string" }],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "engine": { "type": "string", "description": "请求引擎：http / webview" },
+        "parse": { "type": "string", "description": "解析方式：json / html / text / bytes" },
+        "attempts": { "type": "integer", "minimum": 1, "description": "实际尝试次数（含重试）" }
+      }
+    },
+    "response": {
+      "type": "object",
+      "required": ["status", "headers", "ms", "final_url", "body_bytes", "sha256", "truncated", "binary"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "integer", "minimum": 0 },
+        "headers": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [{ "type": "string" }, { "type": "string" }],
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "ms": { "type": "integer", "minimum": 0 },
+        "final_url": { "type": "string", "description": "最终 URL（重定向链终点；与请求地址不同即发生重定向）" },
+        "body_bytes": { "type": "integer", "minimum": 0, "description": "原始体字节数" },
+        "sha256": { "type": "string", "description": "原始体 sha256（hex）" },
+        "truncated": { "type": "boolean", "description": "预览被截断（原始体 > 256KB 预算，V4-D4）" },
+        "binary": { "type": "boolean", "description": "二进制响应（bytes 声明），preview 为 null" },
+        "preview": { "type": "string", "description": "解码文本预览（≤256KB；缺失即二进制）" }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "severity", "path", "message", "hint"],
+      "properties": {
+        "code": { "type": "string", "description": "诊断码（serde 枚举形如 ERef；人类可读映射见 ERRORS.md §1）" },
+        "severity": { "enum": ["Error", "Warning", "Info"] },
+        "stage": { "type": "string" },
+        "path": { "type": "string" },
+        "rule": { "type": "string" },
+        "message": { "type": "string" },
+        "hint": { "type": "string" },
+        "sample": { "type": "string" },
+        "degraded": { "type": "boolean" },
+        "retryable": { "type": "boolean" },
+        "partial": { "type": "boolean" },
+        "fix": {
+          "type": "object",
+          "required": ["find", "replacement", "message"],
+          "properties": {
+            "find": { "type": "string" },
+            "replacement": { "type": "string" },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

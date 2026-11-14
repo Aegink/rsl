@@ -1,0 +1,181 @@
+{
+  "schema": "rsl-debug/1",
+  "source": "examples/novel-html.rsl.json",
+  "sourceId": "example.com",
+  "stage": "detail",
+  "ok": true,
+  "elapsed_ms": 4,
+  "inputs": {
+    "book": {
+      "url": "https://example.com/book/1"
+    }
+  },
+  "request": {
+    "template": "${var:book.url}",
+    "url": "https://example.com/book/1",
+    "method": "GET",
+    "headers": [
+      [
+        "Accept-Language",
+        "zh-CN,zh;q=0.9"
+      ],
+      [
+        "User-Agent",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+      ]
+    ],
+    "engine": "http",
+    "parse": "html",
+    "attempts": 1
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "text/html; charset=utf-8"
+      ]
+    ],
+    "ms": 0,
+    "final_url": "",
+    "body_bytes": 633,
+    "sha256": "cf8a855211f8ce4718633e41fa821a68204198ba2948e85a7c99b85f8bfcc7f9",
+    "truncated": false,
+    "binary": false,
+    "preview": "<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>斗破苍穹 - 示例站</title></head>\n<body>\n<h1 class=\"book-name\">《斗破苍穹》</h1>\n<div class=\"info\"><span class=\"author\">作 者：天蚕土豆</span></div>\n<img class=\"book-cover\" src=\"/cover/1.jpg\">\n<div id=\"intro\">这是一部虚构的演示小说，仅用于调试产物样例（example.com 合规夹具）。</div>\n<div class=\"tags\"><a>玄幻</a><a>热血</a></div>\n<div class=\"last-chapter\"><a>第一千六百二十三章 大结局</a></div>\n<span class=\"update-time\">2026-11-15</span>\n<a class=\"btn-read\" href=\"/book/1/toc\">开始阅读</a>\n</body>\n</html>\n"
+  },
+  "requests": [
+    {
+      "request": {
+        "template": "${var:book.url}",
+        "url": "https://example.com/book/1",
+        "method": "GET",
+        "headers": [
+          [
+            "Accept-Language",
+            "zh-CN,zh;q=0.9"
+          ],
+          [
+            "User-Agent",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+          ]
+        ],
+        "engine": "http",
+        "parse": "html",
+        "attempts": 1
+      },
+      "response": {
+        "status": 200,
+        "headers": [
+          [
+            "Content-Type",
+            "text/html; charset=utf-8"
+          ]
+        ],
+        "ms": 0,
+        "final_url": "",
+        "body_bytes": 633,
+        "sha256": "cf8a855211f8ce4718633e41fa821a68204198ba2948e85a7c99b85f8bfcc7f9",
+        "truncated": false,
+        "binary": false,
+        "preview": "<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>斗破苍穹 - 示例站</title></head>\n<body>\n<h1 class=\"book-name\">《斗破苍穹》</h1>\n<div class=\"info\"><span class=\"author\">作 者：天蚕土豆</span></div>\n<img class=\"book-cover\" src=\"/cover/1.jpg\">\n<div id=\"intro\">这是一部虚构的演示小说，仅用于调试产物样例（example.com 合规夹具）。</div>\n<div class=\"tags\"><a>玄幻</a><a>热血</a></div>\n<div class=\"last-chapter\"><a>第一千六百二十三章 大结局</a></div>\n<span class=\"update-time\">2026-11-15</span>\n<a class=\"btn-read\" href=\"/book/1/toc\">开始阅读</a>\n</body>\n</html>\n"
+      }
+    }
+  ],
+  "out": {
+    "author": "天蚕土豆",
+    "canRename": true,
+    "cover": "https://example.com/cover/1.jpg",
+    "intro": "这是一部虚构的演示小说，仅用于调试产物样例（example.com 合规夹具）。",
+    "kind": "玄幻,热血",
+    "lastChapter": "第一千六百二十三章 大结局",
+    "name": "斗破苍穹",
+    "tocUrl": "https://example.com/book/1/toc",
+    "updateTime": "2026-11-15"
+  },
+  "partial": false,
+  "trace": [
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "css:div.info span.author",
+      "matched": 1,
+      "ms": 1,
+      "bridge": 1,
+      "sample": "天蚕土豆"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "const:true",
+      "matched": 1,
+      "ms": 0,
+      "bridge": 0,
+      "sample": "true"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "css:img.book-cover",
+      "matched": 1,
+      "ms": 1,
+      "bridge": 1,
+      "sample": "https://example.com/cover/1.jpg"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "",
+      "matched": 1,
+      "ms": 0,
+      "bridge": 0,
+      "sample": "这是一部虚构的演示小说，仅用于调试产物样例（example.com 合规夹具）。"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "css:.tags a",
+      "matched": 1,
+      "ms": 0,
+      "bridge": 1,
+      "sample": "玄幻,热血"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "css:.last-chapter a",
+      "matched": 1,
+      "ms": 0,
+      "bridge": 0,
+      "sample": "第一千六百二十三章 大结局"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "css:h1.book-name",
+      "matched": 1,
+      "ms": 1,
+      "bridge": 1,
+      "sample": "斗破苍穹"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "css:a.btn-read",
+      "matched": 1,
+      "ms": 0,
+      "bridge": 1,
+      "sample": "https://example.com/book/1/toc"
+    },
+    {
+      "stage": "detail",
+      "step": "stages.detail",
+      "rule": "css:.update-time",
+      "matched": 1,
+      "ms": 0,
+      "bridge": 1,
+      "sample": "2026-11-15"
+    }
+  ],
+  "diagnostics": []
+}

@@ -208,7 +208,7 @@ fn cmd_compile(rest: &[String]) -> i32 {
 
 fn cmd_run(rest: &[String]) -> i32 {
     if rest.len() < 2 {
-        eprintln!("用法：rsl run <src> <stage> [--kw …] [--page N] [--trace] [--trace-json p] [--fixture f] [--book key=val] [--chapter key=val]");
+        eprintln!("用法：rsl run <src> <stage> [--kw …] [--page N] [--trace] [--trace-json p] [--debug-json p] [--fixture f] [--book key=val] [--chapter key=val]");
         return 2;
     }
     let src_path = &rest[0];
@@ -217,6 +217,7 @@ fn cmd_run(rest: &[String]) -> i32 {
     let mut page = None;
     let mut trace = false;
     let mut trace_json: Option<String> = None;
+    let mut debug_json: Option<String> = None;
     let mut fixture: Option<String> = None;
     let mut book: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
     let mut chapter: std::collections::BTreeMap<String, serde_json::Value> = Default::default();
@@ -237,6 +238,10 @@ fn cmd_run(rest: &[String]) -> i32 {
             }
             "--trace-json" => {
                 trace_json = rest.get(i + 1).cloned();
+                i += 2;
+            }
+            "--debug-json" => {
+                debug_json = rest.get(i + 1).cloned();
                 i += 2;
             }
             "--fixture" => {
@@ -306,6 +311,22 @@ fn cmd_run(rest: &[String]) -> i32 {
     let t0 = std::time::Instant::now();
     let run_res = run_stage(&src, stage_name, &mut cx, &inputs, &mut reuse, &HostCaps::default());
     let elapsed_ms = t0.elapsed().as_millis() as u64;
+    // rsl-debug/1 调试产物（TASK-BOOK-4 T1）：失败阶段也产出（诊断直通 T7），退出码不变
+    if let Some(path) = &debug_json {
+        let artifact = rsl_core::stage::debug::build_artifact(
+            &src, src_path, stage_name, &cx, &inputs, &run_res, elapsed_ms,
+        );
+        if let Some(parent) = Path::new(path).parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        match serde_json::to_string_pretty(&artifact) {
+            Ok(s) => {
+                std::fs::write(path, s + "\n").ok();
+                println!("debug JSON → {path}");
+            }
+            Err(e) => eprintln!("debug JSON 序列化失败：{e}"),
+        }
+    }
     // D2：trace + 诊断 + 计时 → 结构化 JSON（schema/trace.schema.json，版本 rsl-trace/1，H4）
     if let Some(path) = &trace_json {
         let warns = cx.warnings.borrow().clone();

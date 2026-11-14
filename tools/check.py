@@ -166,6 +166,31 @@ def main():
         else:
             print(f"✓ {p.name} 通过")
 
+    # ── rsl-debug/1 样例产物校验（TASK-BOOK-4 T1）──
+    # schema 独立文件（V4-D5：rsl.schema.json $defs=32 不变）；样例由
+    # `rsl run examples/novel-html.rsl.json detail --book url=… --fixture … --debug-json`
+    # 从 example.com 夹具离线生成，内核输出形状漂移即在此红灯。
+    debug_schema_path = ROOT / "schema/rsl-debug.schema.json"
+    debug_dir = ROOT / "examples/debug"
+    if not debug_schema_path.exists():
+        print("✗ 缺少 schema/rsl-debug.schema.json")
+        failures += 1
+    elif not debug_dir.exists() or not list(debug_dir.glob("*.json")):
+        print("✗ 缺少 rsl-debug/1 样例产物（examples/debug/）")
+        failures += 1
+    else:
+        dv = Validator(json.loads(debug_schema_path.read_text(encoding="utf-8")))
+        for p in sorted(debug_dir.glob("*.json")):
+            doc = json.loads(p.read_text(encoding="utf-8"))
+            errs = dv.check(doc, dv.root)
+            if errs:
+                failures += len(errs)
+                print(f"✗ {p.name}: {len(errs)} 处不符（rsl-debug/1）")
+                for e in errs[:20]:
+                    print("   ", e)
+            else:
+                print(f"✓ {p.name} 通过（rsl-debug/1）")
+
     # ── #24 门禁扩展：L-infra 产物存在性（fuzz/基准报告归档，TASK-BOOK-2 §2.2#24）──
     fuzz_report = ROOT / "scratch/fuzz/report/compile_str.json"
     if fuzz_report.exists():

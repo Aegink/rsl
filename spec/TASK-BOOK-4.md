@@ -1,7 +1,7 @@
 ---
 id: rsl-taskbook-4
 type: plan
-status: draft
+status: active
 title: RSL 任务书 v4（编辑 + 调试：五页面调试器 · serve 服务 · 三宿主 · explore 编辑露出）
 parent: rsl-language
 tags: [rsl, taskbook, v4, debugger, serve, editor, explore, tauri]
