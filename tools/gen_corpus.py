@@ -172,7 +172,21 @@ def build_negatives():
 
 # ───────────────────────── 消毒（V2-D1） ─────────────────────────
 URL_RE = re.compile(r"https?://[^/\"'\s\\]+", re.IGNORECASE)
+TLD = r"(?:com|net|cc|org|io|me|top|xyz|cn|vip|site|online|app|info|club|tv|art|pro|fun|icu|wiki|life|mobi|biz|store|tech|space|website|link|zone|red|bar|cool|city|ltd|group|agency|win|pics|photo|press|rocks|systems|network|center|services|support|solutions|company|academy|fan|film|fish|soft|gift|pink|loan|date|name)"
+DOMAIN_RE = re.compile(
+    r"(?<![\w.@\-])((?:[a-z0-9][a-z0-9\-]*\.)+" + TLD + r")(?![\w\-])", re.IGNORECASE
+)
 SENSITIVE_HEADER_KEYS = {"cookie", "authorization", "token", "x-token", "api-key", "apikey", "secret"}
+
+
+def scrub_domain(m):
+    """裸域名 → *.example.com（保留子域结构；punycode 一并处理）。"""
+    host = m.group(1).lower()
+    if host.endswith("example.com"):
+        return m.group(1)
+    parts = host.split(".")
+    parts[-2:] = ["example", "com"]
+    return ".".join(parts)
 
 
 def sanitize(v):
@@ -203,6 +217,7 @@ def sanitize(v):
             nonlocal n_url
             n_url += 1
             return "https://example.com"
+        v = DOMAIN_RE.sub(scrub_domain, v)  # 裸域名（id/x-legado 等）
         return URL_RE.sub(_rep, v), n_url, n_sen
     return v, n_url, n_sen
 
