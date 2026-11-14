@@ -35,6 +35,12 @@ cargo test -p rsl-core              # 全部测试（含 properties.rs 属性测
 加一项要同步 `RSL-1.0.md` / `ERRORS.md` / `REFERENCE.md` / `schema/rsl.schema.json`
 （`tools/consistency.py` 会替你把关）。
 
+## 发布前清单（仓库公开发布时）
+
+- [ ] workspace `Cargo.toml` 补 `repository`/`homepage`（当前刻意留空，不放编造地址）。
+- [ ] `editors/vscode/package.json` 补 `repository`。
+- [ ] 核对 `spec/` 文档内无本地路径与敏感信息（S§17）。
+
 ## 提交规范
 
 - commit message：`YYYYMMDD_<主题>`（与本仓历史一致）。

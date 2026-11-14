@@ -4,15 +4,31 @@
 'use strict';
 
 const vscode = require('vscode');
+const fs = require('fs');
+const path = require('path');
 const { LspClient } = require('./lib/rpc');
+
+/** 解析 rsl-lsp 路径：显式配置 > 工作区 target/debug 回退（仓库根打开即开箱可用）> PATH。 */
+function resolveLspPath() {
+  const cfg = vscode.workspace.getConfiguration('rsl');
+  const explicit = cfg.get('lspPath');
+  if (explicit && explicit !== 'rsl-lsp') return explicit;
+  const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (wsRoot) {
+    const cands = [
+      path.join(wsRoot, 'target', 'debug', 'rsl-lsp.exe'),
+      path.join(wsRoot, 'target', 'debug', 'rsl-lsp'),
+    ];
+    const hit = cands.find((p) => fs.existsSync(p));
+    if (hit) return hit;
+  }
+  return explicit || 'rsl-lsp';
+}
 
 let client = null;
 
 function activate(context) {
-  const cfg = vscode.workspace.getConfiguration('rsl');
-  const lspPath = cfg.get('lspPath') || 'rsl-lsp';
-
-  client = new LspClient(lspPath);
+  client = new LspClient(resolveLspPath());
   context.subscriptions.push({
     dispose() {
       if (client) {
@@ -24,6 +40,8 @@ function activate(context) {
   });
 
   const docSelector = [
+    { language: 'rsl', scheme: 'file', pattern: '**/*.rsl.json' },
+    { language: 'rsl', scheme: 'untitled', pattern: '**/*.rsl.json' },
     { language: 'json', scheme: 'file', pattern: '**/*.rsl.json' },
     { language: 'json', scheme: 'untitled', pattern: '**/*.rsl.json' },
   ];
@@ -45,14 +63,21 @@ function activate(context) {
   const pushDiags = (uri, diagnostics) => {
     diagCollection.set(
       vscode.Uri.parse(uri),
-      diagnostics.map((d) => new vscode.Diagnostic(
-        new vscode.Range(d.range.start.line, d.range.start.character,
-          d.range.end.line, d.range.end.character),
-        d.message,
-        d.severity === 1 ? vscode.DiagnosticSeverity.Error
-          : d.severity === 2 ? vscode.DiagnosticSeverity.Warning
-            : vscode.DiagnosticSeverity.Information,
-      )),
+      diagnostics.map((d) => {
+        const vd = new vscode.Diagnostic(
+          new vscode.Range(d.range.start.line, d.range.start.character,
+            d.range.end.line, d.range.end.character),
+          d.message,
+          d.severity === 1 ? vscode.DiagnosticSeverity.Error
+            : d.severity === 2 ? vscode.DiagnosticSeverity.Warning
+              : vscode.DiagnosticSeverity.Information,
+        );
+        // F2：透传 data.fix（快速修复依赖它回传 server 生成 TextEdit）
+        if (d.data !== undefined) vd.data = d.data;
+        vd.source = 'rsl';
+        if (d.code !== undefined) vd.code = d.code;
+        return vd;
+      }),
     );
   };
 

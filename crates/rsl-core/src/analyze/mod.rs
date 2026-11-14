@@ -770,7 +770,8 @@ fn ref_undef_fix(path: &str, show: &str, ns: &str, expr: &str, scope: &refs::Sco
             .collect(),
         _ => scope.lets.iter().cloned().collect(),
     };
-    let d = ref_undef(path, show);
+    // rule 挂引用原文（如 var:book.urll）——LSP 按 rule 字面量精确定位；无 fix 候选时同样受益
+    let d = ref_undef(path, show).rule(format!("{ns}:{expr}"));
     match nearest_match(expr, &candidates) {
         Some(good) if ns != "let" || scope.lets.contains(&good) => {
             let bad_ref = format!("{ns}:{expr}");

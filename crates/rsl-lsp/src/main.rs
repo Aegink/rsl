@@ -268,6 +268,22 @@ fn diagnostics_of(text: &str) -> Value {
     Value::Array(arr)
 }
 
+/// 字面量子串定位（rule 原文 → 精确 range；如 `var:book.urll` 命中唯一出现处）。
+fn pos_of_literal(text: &str, needle: &str) -> Option<Value> {
+    if needle.is_empty() || needle.len() > text.len() {
+        return None;
+    }
+    let start = text.find(needle)?;
+    let line = text[..start].bytes().filter(|b| *b == b'\n').count();
+    let line_start = text[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let col = text[line_start..start].encode_utf16().count();
+    let end_col = col + needle.encode_utf16().count();
+    Some(json!({
+        "start": {"line": line, "character": col},
+        "end": {"line": line, "character": end_col}
+    }))
+}
+
 fn diag_json(d: &Diagnostic, text: &str) -> Value {
     let sev = match d.severity {
         rsl_core::error::Severity::Error => 1,
@@ -275,7 +291,12 @@ fn diag_json(d: &Diagnostic, text: &str) -> Value {
         rsl_core::error::Severity::Info => 3,
     };
     let last_seg = d.path.split('.').next_back().unwrap_or(&d.path).to_string();
-    let range = pos_range(text, &d.path)
+    // 定位优先级：rule 原文（精确，如 var:book.urll）→ JSON key（path）→ path 末段
+    let range = d
+        .rule
+        .as_deref()
+        .and_then(|r| pos_of_literal(text, r))
+        .or_else(|| pos_range(text, &d.path))
         .or_else(|| pos_range(text, &last_seg))
         .unwrap_or_else(|| json!({"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 0}}));
     let mut m = json!({

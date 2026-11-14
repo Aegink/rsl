@@ -44,12 +44,19 @@ VS Code 内：把本目录放入 `%USERPROFILE%\.vscode\extensions\rsl-spec.rsl-
 
 ## 手工验收清单（H1，需桌面环境）
 
-- [ ] 打开 `examples/novel-html.rsl.json` → 无诊断
-- [ ] 把 `var:book.url` 改为 `var:book.urll` → E_REF 出现 ≤1s，hover 显示来源契约
-- [ ] 快速修复灯泡 → "替换为 var:book.url" → 应用 → 诊断消失
-- [ ] transform 内输入 `"tri` → 步骤键补全出现
-- [ ] snippets：`rsl-source` 前缀展开五阶段骨架，保存后过 `rsl lint`
-- [ ] 截图归档 `docs/`（诊断 / 补全 / 快速修复三张）
+> 2026-11-14 实测（自动化键鼠 + 截屏，VS Code + --extensionDevelopmentPath，
+> 演示文件 scratch/vscode-demo/demo-broken.rsl.json 含 `var:book.urll` 笔误）：
+
+- [x] 打开源 → 诊断出现：E_REF **精确定位到笔误 token**（行 45 列 17，问题面板含 hint）
+      ——[`docs/images/20261114_vscode_h1_诊断.png`](../docs/images/20261114_vscode_h1_诊断.png)
+- [x] 快速修复灯泡 → "替换为 var:book.url（最近似可见引用）" 菜单
+      ——[`docs/images/20261114_vscode_h1_快速修复菜单.png`](../docs/images/20261114_vscode_h1_快速修复菜单.png)
+- [x] 应用 → **0 错误 0 警告**（诊断消失）
+      ——[`docs/images/20261114_vscode_h1_快速修复应用后.png`](../docs/images/20261114_vscode_h1_快速修复应用后.png)
+- [x] 选择器字符串内 `:` 触发 → 18 命名空间补全（含语义文档）
+      ——[`docs/images/20261114_vscode_h1_补全.png`](../docs/images/20261114_vscode_h1_补全.png)
+- [ ] hover 显示来源契约 / transform 内步骤键补全（同类机制，协议冒烟已覆盖；截图留待）
+- [ ] snippets：`rsl-source` 前缀展开五阶段骨架，保存后过 `rsl lint`（留待）
 
 ## 边界
 

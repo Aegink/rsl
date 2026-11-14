@@ -13,8 +13,7 @@ version = "2.0.0"
 edition = "2021"
 license = "MIT"
 authors = ["RSL contributors"]
-repository = "https://github.com/rsl-spec/rsl"
-homepage = "https://github.com/rsl-spec/rsl"
+# repository/homepage：待仓库公开发布时补（见 CONTRIBUTING.md"发布前清单"）——不放编造地址
 keywords = ["reader", "book-source", "language", "parser", "cross-platform"]
 categories = ["parsing", "text-processing"]
 
