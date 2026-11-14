@@ -7,6 +7,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const { LspClient } = require('./lib/rpc');
+const { FormPanel } = require('./form-panel');
 
 /** 解析 rsl-lsp 路径：显式配置 > 工作区 target/debug 回退（仓库根打开即开箱可用）> PATH。 */
 function resolveLspPath() {
@@ -28,7 +29,19 @@ function resolveLspPath() {
 let client = null;
 
 function activate(context) {
+  try {
+    activateInner(context);
+  } catch (err) {
+    vscode.window.showErrorMessage(`RSL 扩展激活失败：${err && err.message}`);
+    throw err;
+  }
+}
+
+function activateInner(context) {
   client = new LspClient(resolveLspPath());
+
+  // H2 M1/M2：表单编辑器（同一面板承载两种模式）
+  const formPanel = new FormPanel(context);
   context.subscriptions.push({
     dispose() {
       if (client) {
@@ -79,6 +92,8 @@ function activate(context) {
         return vd;
       }),
     );
+    // 表单面板诊断条（校验统一走语言服务）
+    formPanel.onDiagnostics(uri, diagnostics);
   };
 
   client.onNotificationFallback = null; // 传输层直接轮询 notifications（lib/rpc.js）
@@ -100,8 +115,16 @@ function activate(context) {
       textDocument: { uri: e.document.uri.toString(), version: e.document.version },
       contentChanges: [{ text: e.document.getText() }],
     });
+    // M2：文本 → 表单（面板内部会跳过自己 apply 触发的变更）
+    formPanel.onDocChanged(e.document);
   }, null, context.subscriptions);
   vscode.workspace.textDocuments.forEach(sync);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('rsl.formEditor', () => {
+      formPanel.open(vscode.window.activeTextEditor);
+    }),
+  );
 
   // 轮询泵：通知 → 诊断集合（lib/rpc.js 的 notifications 数组）
   const pump = setInterval(() => {

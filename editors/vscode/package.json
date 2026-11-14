@@ -19,7 +19,10 @@
     "json"
   ],
   "activationEvents": [
-    "onLanguage:json"
+    "onLanguage:rsl",
+    "onLanguage:json",
+    "onCommand:rsl.formEditor",
+    "onStartupFinished"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -48,6 +51,26 @@
         "path": "./snippets/rsl.json"
       }
     ],
+    "commands": [
+      {
+        "command": "rsl.formEditor",
+        "title": "RSL: 打开表单编辑器",
+        "category": "RSL",
+        "icon": "$(json)"
+      }
+    ],
+    "keybindings": [
+      { "command": "rsl.formEditor", "key": "f6", "when": "editorTextFocus || !editorTextFocus" }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "rsl.formEditor",
+          "when": "resourceFilename =~ /\\.rsl\\.json$/",
+          "group": "navigation@9"
+        }
+      ]
+    },
     "configuration": {
       "title": "RSL",
       "properties": {
@@ -61,7 +84,7 @@
   },
   "scripts": {
     "sync-schema": "node -e \"require('fs').copyFileSync('../../schema/rsl.schema.json','schema/rsl.schema.json')\"",
-    "test": "node test/protocol-smoke.js"
+    "test": "node test/protocol-smoke.js && node test/form-model-test.js"
   },
   "devDependencies": {}
 }
