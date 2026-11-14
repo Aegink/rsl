@@ -234,6 +234,7 @@ function renderTabs(artifact) {
     b.classList.toggle('active', b.dataset.tab === state.tab);
   });
   $('raw-tools').classList.toggle('hidden', state.tab !== 'raw');
+  $('log-tools').classList.toggle('hidden', state.tab !== 'logs');
   const body = $('tab-body');
   body.innerHTML = '';
   if (!artifact) {
@@ -243,6 +244,7 @@ function renderTabs(artifact) {
   if (state.tab === 'raw') renderRawTab(body, artifact);
   else if (state.tab === 'out') renderOutTab(body, artifact);
   else if (state.tab === 'head') renderHeadTab(body, artifact);
+  else if (state.tab === 'logs') renderLogs();
   else renderVisualTab(body, artifact);
 }
 
@@ -716,6 +718,41 @@ function bind() {
     $('label').textContent = (state.sourceDoc && state.sourceDoc.name) || '';
     scheduleLiveRerun();
   });
+  // ── TASK-BOOK-5：视图/主题/源库/日志事件 ──
+  $('vtab-sources').onclick = function () { showView('sources'); };
+  $('vtab-debug').onclick = function () { showView('debug'); };
+  $('btn-theme').onclick = function () { cycleTheme(); };
+  $('btn-src-import').onclick = function () {
+    const st = importSourcesText($('src-import-text').value);
+    $('src-import-status').textContent = st.msg;
+    if (st.ok) { $('src-import-text').value = ''; renderSources(); }
+  };
+  $('btn-src-file').onclick = function () { $('src-import-file').click(); };
+  $('src-import-file').addEventListener('change', function (e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      const st = importSourcesText(String(reader.result));
+      $('src-import-status').textContent = st.msg;
+      if (st.ok) renderSources();
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  });
+  $('src-search').addEventListener('input', function () { renderSources(); });
+  $('btn-src-export').onclick = function () { exportSelected(); };
+  $('btn-src-delete').onclick = function () { deleteSelected(); };
+  document.querySelectorAll('.log-chip').forEach(function (c) {
+    c.onclick = function () { logFilter = c.dataset.logcat; renderLogs(); };
+  });
+  $('btn-log-copy').onclick = function () {
+    navigator.clipboard.writeText(logTextAll());
+    $('btn-log-copy').textContent = '✓ 已复制';
+    setTimeout(function () { $('btn-log-copy').textContent = '⧉ 复制全部'; }, 1200);
+  };
+  $('btn-log-export').onclick = function () { exportLogs(); };
+
   // T6：VS Code 扩展宿主推送编辑缓冲（didChange 转发）
   window.addEventListener('message', (e) => {
     const d = e.data;
@@ -731,6 +768,10 @@ async function init() {
   renderInputs();
   refreshChainList();
   document.querySelectorAll('.stage-tab').forEach((b) => b.classList.toggle('active', b.dataset.stage === 'search'));
+  applyTheme();
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+  }
   try {
     const h = await api('/health');
     if (h.ok) {
@@ -743,3 +784,253 @@ async function init() {
 }
 
 init();
+
+// ═══════════════ TASK-BOOK-5：主题三层 / 视图切换 / 源库 / 日志 ═══════════════
+
+// ── T5 主题：自动(跟随系统)/浅/深 循环 + localStorage 记忆 ──
+const THEME_KEY = 'rsl.theme';
+function applyTheme() {
+  const mode = localStorage.getItem(THEME_KEY) || 'auto';
+  let dark;
+  if (mode === 'dark') dark = true;
+  else if (mode === 'light') dark = false;
+  else dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const label = { auto: '自动', light: '浅色', dark: '深色' }[mode];
+  const btn = $('btn-theme');
+  if (btn) btn.textContent = '🌓 主题：' + label;
+}
+function cycleTheme() {
+  const order = ['auto', 'light', 'dark'];
+  const cur = localStorage.getItem(THEME_KEY) || 'auto';
+  const next = order[(order.indexOf(cur) + 1) % order.length];
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme();
+}
+
+// ── 视图切换（阅读单页骨架：源库 ↔ 调试器） ──
+function showView(name) {
+  $('view-sources').classList.toggle('hidden', name !== 'sources');
+  $('view-debug').classList.toggle('hidden', name !== 'debug');
+  $('vtab-sources').classList.toggle('active', name === 'sources');
+  $('vtab-debug').classList.toggle('active', name === 'debug');
+  if (name === 'sources') renderSources();
+}
+
+// ── T4 源库（localStorage；规则是数据——真源文件仍归用户文件系统） ──
+const SRC_KEY = 'rsl.sources';
+const SRC_USED_KEY = 'rsl.sources.used';
+
+function lsSources() {
+  try { return JSON.parse(localStorage.getItem(SRC_KEY) || '{}'); } catch (_) { return {}; }
+}
+function saveSources(map) {
+  localStorage.setItem(SRC_KEY, JSON.stringify(map));
+}
+function touchUsed(id) {
+  const used = JSON.parse(localStorage.getItem(SRC_USED_KEY) || '{}');
+  used[id] = Date.now();
+  localStorage.setItem(SRC_USED_KEY, JSON.stringify(used));
+}
+function usedAt(id) {
+  const used = JSON.parse(localStorage.getItem(SRC_USED_KEY) || '{}');
+  return used[id] || 0;
+}
+
+/** 导入解析：单对象或数组；最小校验（rsl/id），诊断细节交给调试器编译。 */
+function importSourcesText(text) {
+  let doc;
+  try { doc = JSON.parse(text); } catch (e) { return { ok: false, msg: 'JSON 解析失败：' + e.message }; }
+  const arr = Array.isArray(doc) ? doc : [doc];
+  if (!arr.length) return { ok: false, msg: '空数组' };
+  const map = lsSources();
+  let added = 0;
+  let updated = 0;
+  for (const s of arr) {
+    if (!s || typeof s !== 'object') return { ok: false, msg: '存在非对象条目' };
+    if (!s.rsl || !s.id) return { ok: false, msg: '缺少 rsl / id 字段（不是 RSL 源？）' };
+    if (map[s.id]) updated++; else added++;
+    map[s.id] = { id: s.id, name: s.name || s.id, group: (s.meta && s.meta.group) || '', url: s.baseUrl || '', ts: Date.now(), enabled: true, json: s };
+  }
+  saveSources(map);
+  return { ok: true, msg: '导入完成：新增 ' + added + '、更新 ' + updated };
+}
+
+function srcMatches(s, q) {
+  if (!q) return true;
+  if (q === '已启用') return s.enabled !== false;
+  if (q === '已禁用') return s.enabled === false;
+  if (q === '无分组') return !s.group;
+  if (q.indexOf('group:') === 0) return (s.group || '').indexOf(q.slice(6)) >= 0;
+  return (s.name + ' ' + s.url + ' ' + s.group).toLowerCase().indexOf(q.toLowerCase()) >= 0;
+}
+
+function renderSources() {
+  const list = $('src-list');
+  list.innerHTML = '';
+  const q = ($('src-search').value || '').trim();
+  const all = Object.values(lsSources()).sort(function (a, b) { return usedAt(b.id) - usedAt(a.id); });
+  const shown = all.filter(function (s) { return srcMatches(s, q); });
+  $('src-count').textContent = shown.length + ' / ' + all.length + ' 个源';
+  if (!shown.length) {
+    list.appendChild(el('li', 'src-empty', all.length ? '没有匹配的源（试试清除筛选）' : '还没有源——先在上方导入'));
+    return;
+  }
+  for (const s of shown) {
+    const li = el('li', 'src-item');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'src-check';
+    cb.dataset.id = s.id;
+    li.appendChild(cb);
+    const meta = el('div', 'meta');
+    meta.appendChild(el('div', 'nm', s.name || s.id));
+    if (s.url) meta.appendChild(el('div', 'url', s.url));
+    if (s.group) meta.appendChild(el('div', 'grp', '分组：' + s.group));
+    li.appendChild(meta);
+    const ops = el('div', 'ops');
+    const bDebug = el('button', 'btn small primary', '▶ 调试');
+    bDebug.title = '载入调试器（编辑缓冲即最新规则，免保存）';
+    bDebug.onclick = function () { openSourceInDebug(s); };
+    const bEdit = el('button', 'btn small', '✎ 编辑');
+    bEdit.title = '载入左侧源文本区';
+    bEdit.onclick = function () { openSourceInDebug(s, { editOnly: true }); };
+    const bExp = el('button', 'btn small', '⇩ 导出');
+    bExp.onclick = function () { exportOne(s); };
+    const bDel = el('button', 'btn small', '✕');
+    bDel.title = '从源库删除（不动你的源文件）';
+    bDel.onclick = function () {
+      const m = lsSources();
+      delete m[s.id];
+      saveSources(m);
+      renderSources();
+    };
+    ops.appendChild(bDebug);
+    ops.appendChild(bEdit);
+    ops.appendChild(bExp);
+    ops.appendChild(bDel);
+    li.appendChild(ops);
+    list.appendChild(li);
+  }
+}
+
+function openSourceInDebug(s, opts) {
+  opts = opts || {};
+  touchUsed(s.id);
+  const text = JSON.stringify(s.json, null, 2);
+  state.sourceText = text;
+  $('source-text').value = text;
+  try { state.sourceDoc = JSON.parse(text); } catch (_) { state.sourceDoc = null; }
+  $('label').textContent = (state.sourceDoc && state.sourceDoc.name) || '';
+  showView('debug');
+  refreshChainList();
+  if (!opts.editOnly) runStage();
+}
+
+function download(name, content) {
+  const blob = new Blob([content], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportOne(s) {
+  download(s.id.replace(/[^\w.-]/g, '_') + '.rsl.json', JSON.stringify(s.json, null, 4));
+}
+
+function exportSelected() {
+  const ids = Array.from(document.querySelectorAll('.src-check:checked')).map(function (c) { return c.dataset.id; });
+  const all = lsSources();
+  const chosen = (ids.length ? ids : Object.keys(all)).map(function (id) { return all[id] ? all[id].json : null; }).filter(Boolean);
+  if (!chosen.length) return;
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+  download('RslSources_' + stamp + '.json', JSON.stringify(chosen, null, 4));
+}
+
+function deleteSelected() {
+  const ids = Array.from(document.querySelectorAll('.src-check:checked')).map(function (c) { return c.dataset.id; });
+  if (!ids.length) return;
+  const map = lsSources();
+  for (const id of ids) delete map[id];
+  saveSources(map);
+  renderSources();
+}
+
+// ── T3 调试日志：产物 → 分类行流（对齐阅读 [mm:ss]+符号 协议语义；官方无复制按钮，RSL 补齐） ──
+let logFilter = 'all';
+let logCache = [];
+
+function buildLogLines() {
+  const stages = ['search', 'explore', 'detail', 'toc', 'content'].filter(function (s) { return state.artifacts[s]; });
+  const lines = [];
+  let n = 0;
+  for (const st of stages) {
+    const a = state.artifacts[st];
+    const base = n;
+    n += a.elapsed_ms || 0;
+    lines.push({ cat: 'stage', t: base, text: '︾ ' + (STAGE_LABELS[st] || st) + ' 阶段开始（' + (a.ok ? '成功' : '失败') + '，共 ' + a.elapsed_ms + 'ms）' });
+    const reqs = a.requests || [];
+    reqs.forEach(function (rec, i) {
+      const r = rec.request || {};
+      lines.push({ cat: 'req', t: base + (rec.response ? rec.response.ms : 0), text: '⇒ 请求#' + (i + 1) + ' ' + (r.method || 'GET') + ' ' + (r.url || '') + (r.attempts > 1 ? '（重试 ' + r.attempts + ' 次）' : '') });
+      const resp = rec.response;
+      if (resp) {
+        lines.push({ cat: 'resp', t: base + resp.ms, text: '≡ 响应 ' + resp.status + ' · ' + fmtBytes(resp.body_bytes) + ' · ' + resp.ms + 'ms' + (resp.truncated ? ' · 预览截断' : '') + (resp.final_url && resp.final_url !== r.url ? ' · 重定向→' + resp.final_url : '') });
+      } else {
+        lines.push({ cat: 'err', t: base, text: '✖ 无响应（网络层失败或请求未发出）' });
+      }
+    });
+    for (const tr of a.trace || []) {
+      if (tr.step === 'ctx.log') lines.push({ cat: 'script', t: base + (tr.ms || 0), text: '◇ [脚本] ' + tr.rule });
+      else lines.push({ cat: 'parse', t: base + (tr.ms || 0), text: '┌ ' + tr.rule + ' → 命中 ' + tr.matched + (tr.ms ? ' · ' + tr.ms + 'ms' : '') });
+    }
+    for (const d of a.diagnostics || []) {
+      lines.push({ cat: 'diag', t: base, text: '⚠ [' + d.code + '] ' + d.message + '（' + (d.path || '') + '）' });
+    }
+    if (!a.ok && a.error) lines.push({ cat: 'err', t: base, text: '✖ [' + a.error.code + '] ' + a.error.message });
+    lines.push({ cat: 'stage', t: n, text: '︽ ' + (STAGE_LABELS[st] || st) + ' 阶段' + (a.ok ? '完成' : '失败') });
+  }
+  return lines;
+}
+
+function fmtLogTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const frac = ms % 1000;
+  return '[' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0') + '.' + String(frac).padStart(3, '0') + ']';
+}
+
+function renderLogs() {
+  logCache = buildLogLines();
+  const body = $('tab-body');
+  body.innerHTML = '';
+  const tools = $('log-tools');
+  tools.querySelectorAll('.log-chip').forEach(function (c) { c.classList.toggle('active', c.dataset.logcat === logFilter); });
+  const shown = logFilter === 'all' ? logCache : logCache.filter(function (l) { return l.cat === logFilter; });
+  const wrap = el('div', 'log-list');
+  for (const l of shown) {
+    const row = el('div', 'log-line ' + l.cat);
+    row.appendChild(el('span', 't', fmtLogTime(l.t)));
+    row.appendChild(el('span', 'm', l.text));
+    const cp = el('button', 'log-copy', '⧉ 复制');
+    cp.onclick = function () {
+      navigator.clipboard.writeText(fmtLogTime(l.t) + ' ' + l.text);
+      cp.textContent = '✓';
+      setTimeout(function () { cp.textContent = '⧉ 复制'; }, 900);
+    };
+    row.appendChild(cp);
+    wrap.appendChild(row);
+  }
+  if (!shown.length) wrap.appendChild(emptyState('暂无日志', '运行一个阶段后，这里会有带时间戳的完整调试过程'));
+  body.appendChild(wrap);
+}
+
+function logTextAll() {
+  return logCache.map(function (l) { return fmtLogTime(l.t) + ' ' + l.text; }).join('\n');
+}
+
+function exportLogs() {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  download('debug-log-' + stamp + '.txt', logTextAll());
+}

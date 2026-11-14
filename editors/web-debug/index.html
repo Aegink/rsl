@@ -10,23 +10,50 @@
 <header class="topbar">
   <div class="brand">
     <span class="logo">RSL</span>
-    <strong>调试器</strong>
+    <strong>编辑台</strong>
     <span class="proto">rsl-debug/1</span>
   </div>
+  <nav class="view-switch">
+    <button id="vtab-sources" class="view-tab">📚 源库</button>
+    <button id="vtab-debug" class="view-tab active">🔍 调试器</button>
+  </nav>
   <div class="conn">
     <span id="conn-dot" class="dot dot-off"></span>
     <span id="conn-text">未连接</span>
     <span id="label" class="muted"></span>
   </div>
   <div class="top-actions">
+    <button id="btn-theme" class="btn" title="切换浅色/深色/跟随系统">🌓 主题：自动</button>
     <button id="btn-pause" class="btn" title="暂停后不再自动重跑（防止高频打站点）">⏸ 实时：开</button>
   </div>
 </header>
 
 <div id="diag-bar" class="diag-bar hidden"></div>
 
-<main class="layout">
-  <!-- 左栏：阶段 + 输入 + 链式轨迹 + 源文本 -->
+<!-- ── 源库视图（TASK-BOOK-5 T4：导入 → 管理 → 进入编辑或调试） ── -->
+<main id="view-sources" class="sources-wrap hidden">
+  <div class="src-import">
+    <h2 style="margin:0 0 6px; font-size:14px; color:var(--fg-strong)">导入书源</h2>
+    <p class="hint">粘贴 RSL 源 JSON（单个对象或数组）；真实站点源请在本地文件管理（不入仓库，S§17）。</p>
+    <textarea id="src-import-text" spellcheck="false" placeholder='{"rsl": "2.0", "id": "...", ...}'></textarea>
+    <div class="row">
+      <button id="btn-src-import" class="btn primary small">＋ 导入</button>
+      <input id="src-import-file" type="file" accept=".json,.txt" class="hidden">
+      <button id="btn-src-file" class="btn small">选择文件…</button>
+      <span id="src-import-status" class="hint"></span>
+    </div>
+  </div>
+  <div class="src-toolbar">
+    <input id="src-search" class="src-search" type="text" placeholder="筛选：名称 / URL / 分组（同阅读魔法词：已启用 / 无分组 / group:xxx）">
+    <button id="btn-src-export" class="btn small">导出选中</button>
+    <button id="btn-src-delete" class="btn small">删除选中</button>
+    <span id="src-count" class="src-count"></span>
+  </div>
+  <ul id="src-list" class="src-list"></ul>
+</main>
+
+<!-- ── 调试器视图（五阶段 × 四 tab + 日志） ── -->
+<main id="view-debug" class="layout">
   <aside class="left">
     <section class="card">
       <h2>调试阶段</h2>
@@ -40,7 +67,7 @@
       <p class="hint" id="stage-hint"></p>
     </section>
 
-    <section class="card" id="input-card">
+    <section class="card">
       <h2>输入</h2>
       <div id="inputs-search">
         <label class="field">搜索词 <input id="in-kw" type="text" placeholder="关键字"></label>
@@ -58,7 +85,7 @@
         <h3>分组（groups）</h3>
         <div id="groups-tree" class="tree"></div>
         <h3>筛选（filters）</h3>
-        <div id="filters-panel"></div>
+        <div id="filters-panel" class="filters-panel"></div>
       </div>
       <div class="run-row">
         <button id="btn-run" class="btn primary">▶ 运行</button>
@@ -90,13 +117,13 @@
     </section>
   </aside>
 
-  <!-- 右栏：四 tab 结果区 -->
   <section class="right">
     <nav class="tabs" id="tabs">
       <button data-tab="raw" class="tab active">原始数据</button>
       <button data-tab="out" class="tab">解析结果</button>
       <button data-tab="head" class="tab">协议标头</button>
       <button data-tab="visual" class="tab">可视界面</button>
+      <button data-tab="logs" class="tab">日志</button>
       <span id="page-picker" class="page-picker hidden"></span>
     </nav>
     <div class="tab-tools hidden" id="raw-tools">
@@ -105,12 +132,24 @@
       <button class="btn small" data-rawmode="raw">还原</button>
       <span id="raw-meta" class="muted small"></span>
     </div>
+    <div class="log-tools hidden" id="log-tools">
+      <button class="log-chip active" data-logcat="all">全部</button>
+      <button class="log-chip" data-logcat="req">请求</button>
+      <button class="log-chip" data-logcat="resp">响应</button>
+      <button class="log-chip" data-logcat="parse">解析</button>
+      <button class="log-chip" data-logcat="script">脚本</button>
+      <button class="log-chip" data-logcat="diag">诊断</button>
+      <button class="log-chip" data-logcat="err">错误</button>
+      <span style="flex:1"></span>
+      <button id="btn-log-copy" class="btn small">⧉ 复制全部</button>
+      <button id="btn-log-export" class="btn small">导出 .txt</button>
+    </div>
     <div id="tab-body" class="tab-body"></div>
   </section>
 </main>
 
 <footer class="foot">
-  执行唯一在 Rust 内核（本机 rsl serve · 127.0.0.1）；前端只渲染与编排，零解析逻辑。响应体仅内存预览 ≤256KB，不落盘。
+  执行唯一在 Rust 内核（本机 rsl serve · 127.0.0.1）；前端只渲染与编排，零解析逻辑。响应体仅内存预览 ≤256KB，不落盘。源库存于浏览器 localStorage。
 </footer>
 
 <script src="app.js"></script>

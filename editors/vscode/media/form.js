@@ -8,6 +8,7 @@
 (function () {
   const M = window.RslFormModel;
   const vscode = acquireVsCodeApi();
+  window.__rslVscode = vscode; // T1 互通：顶栏按钮脚本复用（acquireVsCodeApi 仅可调用一次）
   let cfg = null;
   let state = null;
   let docMode = false;

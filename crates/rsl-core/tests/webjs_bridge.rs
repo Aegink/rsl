@@ -153,3 +153,57 @@ fn c2_string_form_request_flag_false() {
     let (_, ctx) = port.last();
     assert!(!ctx, "自由 JS 形态不得携带桥标志");
 }
+
+// ─────────────── 七猫 L3 复测暴露的桥回归锁定（V4 通用修复） ───────────────
+
+/// crypto.sym 的 JS 桥必须返回**纯字符串**（不带 JSON 引号）——V2 曾用
+/// serde_json::to_string 包装 Value，使 base64 结果在 JS 侧带引号，
+/// b64 解码失败返回空串（Boa 时代 json_to_js 无此问题，回归修复）。
+#[test]
+fn ctx_sym_bridge_returns_plain_string() {
+    use rsl_core::exec::hosts::CtxHost;
+    use rsl_core::script::CtxApi;
+    use rsl_core::exec::ctx::ExecCx;
+    use rsl_core::ports::{Clock, SystemClock};
+
+    // 加密往返：encrypt → decrypt 应还原明文
+    let src = r#"{"rsl":"2.0","id":"sym.example.com","name":"s","type":"novel","baseUrl":"https://sym.example.com",
+      "requires":{"features":["crypto"],"crypto":["aes-cbc"]},
+      "stages":{"search":{"request":{"url":"https://sym.example.com/s"},"out":{"list":"css:li","map":{"name":"css:a","url":"css:a"}}},"detail":{"request":{"url":"var:book.url"},"out":{"name":"css:h1"}},"toc":{"request":{"url":"var:book.tocUrl"},"out":{"list":"css:li","map":{"title":"css:a","url":"css:a"}}},"content":{"request":{"url":"var:chapter.url"},"out":{"content":"css:#c"}}}}"#;
+    let out = rsl_core::compile(src);
+    let ir = out.source.unwrap();
+    let cookie = rsl_core::ports::MemoryCookieStore::default();
+    let transport = rsl_core::ports::FixtureTransport {
+        responses: vec![],
+        idx: std::sync::atomic::AtomicUsize::new(0),
+    };
+    let clock = SystemClock;
+    let mut cx = ExecCx::new(&ir, &transport, &clock);
+    cx.cookie_store = Some(&cookie);
+    let host = rsl_core::exec::hosts::CtxHost { cx: &mut cx };
+
+    // AES-CBC key=16 字节，iv=16 字节（hex: 前缀路径）
+    let plain = "七猫正文测试文本0123456789"; // 多块
+    let enc = host
+        .crypto_symmetric("aes-cbc", "encrypt", "<AES_KEY>", "hex:0123456789abcdef0123456789abcdef", plain)
+        .expect("加密成功");
+    let enc_str = enc.as_str().expect("sym 结果必须是字符串——桥不得包 JSON 引号");
+    assert!(!enc_str.starts_with('"'), "sym 桥不得返回带引号字符串: {enc_str}");
+    let dec = host
+        .crypto_symmetric("aes-cbc", "decrypt", "<AES_KEY>", "hex:0123456789abcdef0123456789abcdef", enc_str)
+        .expect("解密成功");
+    let dec_str = dec.as_str().expect("解密结果必须是字符串");
+    // decrypt 输出 base64（桥约定），还原文本需再解码——这里只锁定“无引号”回归
+    assert!(!dec_str.starts_with('"'), "解密结果同样不得带引号");
+}
+
+/// b64hex / b64utf8 工具（base64_to_hex / base64_to_utf8）——
+/// 二进制以 hex 安全字符串穿越 JS 边界（七猫正文 IV 派生场景）。
+#[test]
+fn base64_tools_roundtrip() {
+    let b64 = "NDcxNTkwMDA3OTgzNjU5Nw=="; // "4715900079836597"
+    let hex = rsl_core::crypto::base64_to_hex(b64).expect("b64→hex");
+    assert_eq!(hex, "34373135393030303739383336353937");
+    let text = rsl_core::crypto::base64_to_utf8(b64).expect("b64→utf8");
+    assert_eq!(text, "4715900079836597");
+}

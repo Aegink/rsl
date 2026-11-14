@@ -16,6 +16,12 @@ class FormPanel {
     this.uri = null;       // 绑定的文档（null = M1 骨架模式）
     this.baseDoc = null;   // 当前基线文档对象
     this.applying = false; // 自己写入触发的变更不回推表单
+    this.debugPartner = null; // T1 互通：调试面板（extension.js 注入）
+  }
+
+  /** 表单面板顶栏「▶ 调试」按钮 → 调试面板（同文档，反复修改+反复调试闭环）。 */
+  setDebugPartner(dp) {
+    this.debugPartner = dp;
   }
 
   /** 打开：有活动的 .rsl.json → M2；面板已存在且绑定过文档 → 回绑该文档（UX：
@@ -97,7 +103,16 @@ class FormPanel {
 
   // ───────── WebView → host ─────────
   async _onMessage(msg) {
-    if (!msg || !msg.state) return;
+    if (!msg) return;
+    if (msg.type === 'debug' && this.debugPartner) {
+      // T1 互通：带着当前文档去调试（调试器执行唯一在内核；源文本随请求携带=免保存）
+      const doc = vscode.workspace.textDocuments.find((d) => d.uri.toString() === this.uri?.toString());
+      if (doc) {
+        await this.debugPartner.open({ document: doc });
+        return;
+      }
+    }
+    if (!msg.state) return;
     if (msg.type === 'apply') {
       if (!this.uri) { this._generate(msg.state); return; }
       const doc = await vscode.workspace.openTextDocument(this.uri);
@@ -186,10 +201,18 @@ class FormPanel {
 <div id="toolbar">
   <button id="btnApply">应用到文档</button>
   <button id="btnGenerate" class="secondary">生成源文件</button>
+  <button id="btnDebug" class="secondary">▶ 调试</button>
   <span class="muted">未建模内容（x- 字段、media、login 细节等）在应用时原样保留。</span>
 </div>
 <script nonce="${nonce}" src="${jsModel}"></script>
 <script nonce="${nonce}" src="${jsUi}"></script>
+<script nonce="${nonce}">
+  // T1 编辑↔调试互通：表单面板顶栏按钮（复用 form.js 已获取的 api）
+  (function () {
+    var b = document.getElementById('btnDebug');
+    if (b && window.__rslVscode) b.addEventListener('click', function () { window.__rslVscode.postMessage({ type: 'debug' }); });
+  })();
+</script>
 </body>
 </html>`;
   }

@@ -198,9 +198,15 @@ impl<'x, 'c> crate::script::CtxApi for CtxHost<'x, 'c> {
         Ok(hex::encode(crate::crypto::digest(alg, data.as_bytes())?))
     }
     fn crypto_symmetric(&self, alg: &str, mode: &str, key: &str, iv: &str, data: &str) -> Result<Value, Diagnostic> {
-        // 约定：iv 与 data 都可以是 base64（优先解码）或原始字节串；key 始终 UTF-8
-        let iv_bytes = crate::crypto::base64_decode(iv).unwrap_or_else(|_| iv.as_bytes().to_vec());
-        let raw = crate::crypto::base64_decode(data).unwrap_or_else(|_| data.as_bytes().to_vec());
+        // 约定：iv 与 data 都可以是 hex: 前缀（十六进制）或 base64（优先解码）或原始字节串；key 始终 UTF-8
+        let decode_input = |s: &str| -> Vec<u8> {
+            if let Some(h) = s.strip_prefix("hex:") {
+                return hex::decode(h).unwrap_or_default();
+            }
+            crate::crypto::base64_decode(s).unwrap_or_else(|_| s.as_bytes().to_vec())
+        };
+        let iv_bytes = decode_input(iv);
+        let raw = decode_input(data);
         let out = crate::crypto::symmetric(alg, mode, key.as_bytes(), &iv_bytes, &raw, None)?;
         Ok(Value::String(crate::crypto::base64_encode(&out)))
     }

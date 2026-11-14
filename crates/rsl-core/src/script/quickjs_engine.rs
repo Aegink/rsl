@@ -172,6 +172,16 @@ fn eval_or_undefined<'js>(ctx: &Ctx<'js>, expr: &str) -> JsValue<'js> {
     }
 }
 
+/// Value → JS 桥字符串：String 值直传（不带引号），其它类型 JSON 序列化。
+/// 与 boa json_to_js 同语义——V2 曾误用 serde_json::to_string 包了一切，
+/// 使 http 响应文本 / crypto.sym 结果在 JS 侧带引号（回归，七猫 L3 复测暴露）。
+fn value_to_bridge_string(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
 /// ctx 十接口桥（与 boa bind_ctx_globals 同语义）。闭包首参 Ctx，无外部捕获。
 fn bind_qjs_globals(c: &Ctx<'_>) -> Result<(), Diagnostic> {
     let g = c.globals();
@@ -249,9 +259,15 @@ fn bind_qjs_globals(c: &Ctx<'_>) -> Result<(), Diagnostic> {
         }
     });
 
+    reg!("__ctx_b64hex", |s: String| -> String {
+        crate::crypto::base64_to_hex(&s).unwrap_or_default()
+    });
+    reg!("__ctx_b64utf8", |s: String| -> String {
+        crate::crypto::base64_to_utf8(&s).unwrap_or_default()
+    });
     reg!("__ctx_crypto_sym", |alg: String, mode: String, key: String, iv: String, data: String| -> String {
         match with_host_qjs(|h| h.crypto_symmetric(&alg, &mode, &key, &iv, &data)) {
-            Ok(v) => serde_json::to_string(&v).unwrap_or_default(),
+            Ok(v) => value_to_bridge_string(&v),
             Err(d) => push_err_qjs(d),
         }
     });
@@ -275,6 +291,8 @@ globalThis.__ctx = {
   session: { get: (k) => { var t = __ctx_session_get(k); try { return t == null ? undefined : JSON.parse(t); } catch (e) { return undefined; } }, set: (k, v) => __ctx_session_set(k, v) },
   cookie: { get: (k) => __ctx_cookie_get(k), set: (k, v) => __ctx_cookie_set(k, v), remove: (k) => __ctx_cookie_remove(k) },
   log: (m) => __ctx_log(m),
+  b64hex: (s) => __ctx_b64hex(s),
+  b64utf8: (s) => __ctx_b64utf8(s),
   crypto: {
     md5: (s) => __ctx_crypto('md5', s),
     sha1: (s) => __ctx_crypto('sha1', s),

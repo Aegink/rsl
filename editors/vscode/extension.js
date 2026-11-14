@@ -45,6 +45,9 @@ function activateInner(context) {
   const formPanel = new FormPanel(context);
   // T6：调试面板（spawn rsl serve + webview iframe + didChange 转发）
   const debugPanel = new DebugPanel(context);
+  // T1 编辑↔调试互通：互跳（反复修改 + 反复调试闭环）
+  formPanel.setDebugPartner(debugPanel);
+  debugPanel.setEditPartner(formPanel);
   context.subscriptions.push({
     dispose() {
       if (client) {

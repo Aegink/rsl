@@ -231,6 +231,17 @@ pub fn base64_decode(s: &str) -> Result<Vec<u8>, Diagnostic> {
     })
 }
 
+/// Base64 → 小写 hex（脚本桥用：二进制以 hex 安全字符串穿越 JS 边界）。
+pub fn base64_to_hex(s: &str) -> Result<String, Diagnostic> {
+    Ok(hex::encode(base64_decode(s)?))
+}
+
+/// Base64 → UTF-8 字符串（解码结果按文本使用）。
+pub fn base64_to_utf8(s: &str) -> Result<String, Diagnostic> {
+    let bytes = base64_decode(s)?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
 pub fn url_encode(s: &str, charset: Option<&str>) -> String {
     match charset {
         Some("gbk") | Some("gb2312") | Some("gb18030") => {

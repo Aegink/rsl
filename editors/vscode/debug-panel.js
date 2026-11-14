@@ -42,11 +42,22 @@ class DebugPanel {
     this.panel = null; // vscode WebviewPanel
     this.debounce = null;
     this.statusItem = null;
+    this.editPartner = null; // T1 互通：表单面板（extension.js 注入）
   }
 
-  /** 启动（或复用）serve + 打开调试面板。 */
+  /** T1 编辑↔调试互通：调试面板「✎ 编辑」→ 表单面板。 */
+  setEditPartner(fp) {
+    this.editPartner = fp;
+  }
+
+  /** 启动（或复用）serve + 打开调试面板。
+   *  编辑器无活动 .rsl.json 时回退：上次调试的文档 → 工作区任一打开的 .rsl.json（webview 聚焦场景，T1）。 */
   async open(editor) {
-    const doc = editor?.document;
+    let doc = editor?.document;
+    if (!doc && this.lastDoc && !this.lastDoc.isClosed) doc = this.lastDoc;
+    if (!doc) {
+      doc = vscode.workspace.textDocuments.find((d) => d.fileName.endsWith('.rsl.json'));
+    }
     if (!doc || !doc.fileName.endsWith('.rsl.json')) {
       vscode.window.showInformationMessage('先打开一个 .rsl.json 源文件，再启动调试。');
       return;
@@ -71,12 +82,16 @@ class DebugPanel {
         { enableScripts: true, retainContextWhenHidden: true },
       );
       this.panel.webview.html = this.html(this.serve.url, this.serve.token);
-      // iframe load 完成会回发 ready → 重推当前编辑缓冲（防首帧丢失）
+      // iframe load 完成会回发 ready → 重推当前编辑缓冲（防首帧丢失）；✎ 编辑 → 表单面板（T1 互通）
       this.panel.webview.onDidReceiveMessage((msg) => {
         if (msg && msg.kind === 'ready') {
           const active = vscode.window.activeTextEditor?.document;
           const doc = active && active.fileName.endsWith('.rsl.json') ? active : this.lastDoc;
           if (doc) this.pushSource(doc.getText());
+        }
+        if (msg && msg.kind === 'edit' && this.editPartner) {
+          const doc = this.lastDoc ?? vscode.window.activeTextEditor?.document;
+          if (doc) this.editPartner.open({ document: doc });
         }
       }, null, this.context.subscriptions);
       this.panel.onDidDispose(() => { this.panel = null; }, null, this.context.subscriptions);
@@ -132,15 +147,18 @@ class DebugPanel {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; frame-src http://127.0.0.1:*; script-src 'unsafe-inline'; style-src 'unsafe-inline';">
 <style>
   html,body { margin:0; height:100%; background:#1f2a3a; }
-  iframe { border:0; width:100%; height:100%; display:block; }
-  .boot { color:#dbe6f5; font:13px/1.6 sans-serif; padding:24px; }
+  iframe { border:0; width:100%; height:calc(100% - 34px); display:block; }
+  .bar { height: 34px; display:flex; align-items:center; padding: 0 8px; }
+  .bar button { background:#31415a; color:#dbe6f5; border:1px solid #46586f; border-radius:5px; padding:4px 12px; cursor:pointer; }
+  .bar button:hover { background:#3d5170; }
 </style></head>
 <body>
+<div class="bar"><button id="btn-edit" title="回到表单编辑（反复修改 + 反复调试）">✎ 编辑</button></div>
 <iframe id="dbg" src="${src}" title="RSL 调试器"></iframe>
 <script>
   const vscode = acquireVsCodeApi();
   const frame = document.getElementById('dbg');
-  // didChange → iframe（T5：编辑缓冲推送）
+  // didChange → iframe（T5：编辑缓冲推送）；✎ 编辑 → 表单（T1 互通）
   window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'rsl-source') {
       frame.contentWindow.postMessage({ type: 'rsl-source', text: e.data.text }, '*');
@@ -148,6 +166,9 @@ class DebugPanel {
   });
   frame.addEventListener('load', () => {
     vscode.postMessage({ kind: 'ready' });
+  });
+  document.getElementById('btn-edit').addEventListener('click', () => {
+    vscode.postMessage({ kind: 'edit' });
   });
 </script>
 </body></html>`;
